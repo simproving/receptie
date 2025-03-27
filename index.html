@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notă de Recepție</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding: 10px;
+            max-width: 1000px;
+            margin: 0 auto;
+            font-family: Arial, sans-serif;
+            font-size: 11px;
+        }
+        .text-input-container {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .text-input-container textarea {
+            width: 100%;
+            height: 100px;
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .text-input-container button {
+            padding: 5px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .text-input-container button:hover {
+            background-color: #0056b3;
+        }
+        .receipt-header {
+            text-align: center;
+            margin-bottom: 10px;
+            color: #d9534f;
+            font-weight: bold;
+        }
+        .receipt-header h4 {
+            font-size: 14px;
+            margin: 0;
+        }
+        .company-info {
+            margin-bottom: 10px;
+            font-size: 12px;
+        }
+        .company-info input {
+            width: 300px;
+            border: none;
+            border-bottom: 1px solid #000;
+        }
+        .document-info {
+            border: 1px solid #000;
+            margin-bottom: 10px;
+        }
+        .document-info table {
+            width: 100%;
+            margin-bottom: 0;
+        }
+        .document-info th {
+            background-color: #f8f9fa;
+            font-weight: normal;
+            text-align: center;
+            padding: 2px;
+            border: 1px solid #000;
+            font-size: 10px;
+        }
+        .document-info td {
+            padding: 2px;
+            border: 1px solid #000;
+            font-size: 10px;
+            height: 25px;
+        }
+        .document-info input {
+            width: 100%;
+            border: none;
+            font-size: 10px;
+            text-align: center;
+        }
+        .delegate-info {
+            margin-bottom: 10px;
+            font-size: 11px;
+        }
+        .main-table {
+            width: 100%;
+            margin-bottom: 10px;
+            border: 1px solid #000;
+            border-collapse: collapse;
+        }
+        .main-table th, .main-table td {
+            border: 1px solid #000;
+            padding: 2px;
+            text-align: center;
+            font-size: 10px;
+            line-height: 1.1;
+        }
+        .main-table th {
+            background-color: #fff;
+            font-weight: normal;
+        }
+        .main-table input {
+            width: 100%;
+            border: none;
+            font-size: 10px;
+            text-align: center;
+        }
+        .footer {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 10px;
+            font-weight: bold;
+            font-size: 11px;
+        }
+        .total-row {
+            font-weight: bold;
+            background-color: #f8f9fa;
+        }
+        .upload-button {
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            #emptyRow {
+                display: none !important;
+            }
+            @page {
+                margin: 0.5cm;
+                size: portrait;
+            }
+            body {
+                width: 100% !important;
+                min-width: 800px !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+            .receipt-header {
+                margin-bottom: 5px !important;
+            }
+            .company-info {
+                margin-bottom: 5px !important;
+            }
+            .delegate-info {
+                margin-bottom: 5px !important;
+            }
+            .document-info {
+                margin-bottom: 5px !important;
+            }
+            input {
+                padding: 0 !important;
+            }
+            /* Ensure table structure is maintained */
+            table {
+                display: table !important;
+                table-layout: fixed !important;
+                width: 100% !important;
+                visibility: visible !important;
+                margin: 0 !important;
+                border-collapse: collapse !important;
+            }
+            thead {
+                display: table-header-group !important;
+                visibility: visible !important;
+            }
+            tbody {
+                display: table-row-group !important;
+                visibility: visible !important;
+            }
+            tr {
+                display: table-row !important;
+                page-break-inside: avoid !important;
+                visibility: visible !important;
+                height: auto !important;
+                min-height: 24px !important;
+                position: static !important;
+            }
+            tr::before {
+                display: none !important;
+                content: none !important;
+                width: 0 !important;
+                position: static !important;
+                left: 0 !important;
+            }
+            td, th {
+                display: table-cell !important;
+                visibility: visible !important;
+                border: 1px solid #000 !important;
+                page-break-inside: avoid !important;
+                padding: 2px !important;
+                height: auto !important;
+                min-height: 20px !important;
+            }
+            /* Ensure inputs are visible */
+            input {
+                visibility: visible !important;
+                display: inline-block !important;
+                border: none !important;
+                background: transparent !important;
+                width: 100% !important;
+                text-align: center !important;
+                font-size: 10px !important;
+            }
+            /* Ensure specific table elements */
+            .main-table {
+                display: table !important;
+                border-collapse: collapse !important;
+                visibility: visible !important;
+                width: 100% !important;
+                border: 1px solid #000 !important;
+            }
+            .main-table tr {
+                position: static !important;
+            }
+            .main-table tr:not(#emptyRow) {
+                display: table-row !important;
+                visibility: visible !important;
+                border: 1px solid #000 !important;
+            }
+            .main-table tr::before {
+                display: none !important;
+                content: none !important;
+                width: 0 !important;
+                position: static !important;
+                left: 0 !important;
+            }
+            .main-table .data-row {
+                display: table-row !important;
+                visibility: visible !important;
+            }
+            .main-table td, .main-table th {
+                display: table-cell !important;
+                visibility: visible !important;
+                page-break-inside: avoid !important;
+                border: 1px solid #000 !important;
+            }
+            /* Ensure totals row */
+            .total-row {
+                display: table-row !important;
+                visibility: visible !important;
+                background-color: #f8f9fa !important;
+                page-break-inside: avoid !important;
+                border: 1px solid #000 !important;
+            }
+            /* Remove delete buttons */
+            .delete-row {
+                display: none !important;
+            }
+            /* Show row numbers */
+            .row-number {
+                display: inline-block !important;
+                visibility: visible !important;
+                font-weight: bold !important;
+            }
+            /* Ensure headers are visible */
+            .main-table th {
+                background-color: #f8f9fa !important;
+                font-weight: normal !important;
+                text-align: center !important;
+                font-size: 10px !important;
+            }
+        }
+        .delete-row {
+            position: absolute;
+            left: -25px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 20px;
+            height: 20px;
+            background-color: #dc3545;
+            color: white;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 12px;
+            border: none;
+            padding: 0;
+            line-height: 1;
+            transition: background-color 0.2s;
+        }
+        .main-table tr {
+            position: relative;
+        }
+        .main-table tr:hover .delete-row {
+            display: flex;
+        }
+        .delete-row:hover {
+            background-color: #c82333;
+        }
+        /* Add padding to create a larger hover area */
+        .main-table tr::before {
+            content: '';
+            position: absolute;
+            left: -30px;
+            top: 0;
+            width: 30px;
+            height: 100%;
+            background: transparent;
+        }
+        /* Keep button visible while hovering over the button or the extended area */
+        .main-table tr:hover::before {
+            display: block;
+        }
+        .main-table tr:hover .delete-row,
+        .delete-row:hover,
+        .main-table tr::before:hover + tr .delete-row {
+            display: flex;
+        }
+        .main-table input[readonly] {
+            background-color: transparent;
+        }
+        .row-number {
+            font-weight: bold;
+        }
+        .receipt-header-text {
+            font-weight: bold;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="text-input-container no-print">
+        <textarea id="bulkInput" placeholder="Deschizi factura, apesi ctrl+a, apesi ctrl+c, dai click aici, apesi ctrl+v, apesi butonul Go"></textarea>
+        <button onclick="parseAndUpdateTable()">Go</button>
+    </div>
+
+    <div class="receipt-header">
+        <span class="receipt-header-text"> NOTĂ DE RECEPȚIE NR. </span> 
+        <span class="receipt-header-text" style="margin-left: 120px; "> din </span> 
+        <span class="receipt-header-text" style="margin-left: 120px; "> 20 </span>
+    </div>
+    
+    <div class="company-info">
+        <strong>S.C ___________________ SRL</strong>
+    </div>
+
+    <div class="document-info">
+        <table>
+            <tr>
+                <th width="14%">DOCUMENT DE<br>LIVRARE</th>
+                <th width="14%">Nr.</th>
+                <th width="14%">DATA</th>
+                <th width="30%">FURNIZORUL</th>
+                <th width="14%">COD FISCAL</th>
+                <th width="14%">ACHITAT CU</th>
+            </tr>
+            <tr>
+                <td><input type="text" value="FACTURA"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text" value="SC AVON COSMETICS SRL"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+            </tr>
+        </table>
+    </div>
+
+    <div class="delegate-info">
+        <span>Delegat </span>
+        <span style="margin-left: 320px;">Mijloc de transport </span>
+    </div>
+
+    <table class="main-table">
+        <thead>
+            <tr>
+                <th>Nr.<br>crt</th>
+                <th style="width: 25%">DENUMIREA</th>
+                <th>Simbol<br>C.T.C.</th>
+                <th>U/M</th>
+                <th>Cantitatea</th>
+                <th>Preț fără<br>T.V.A.</th>
+                <th>Valoare fără<br>T.V.A.</th>
+                <th>T.V.A.<br>deductibil</th>
+                <th>Valoare cu<br>T.V.A.</th>
+                <th>Preț de<br>vânzare</th>
+                <th>Valoare la<br>preț de vânzare</th>
+                <th>Adaos<br>comercial<br>lei</th>
+            </tr>
+        </thead>
+        <tbody id="itemsTable">
+            <tr id="emptyRow">
+                <td><button type="button" class="delete-row" onclick="deleteRow(this)">×</button></td>
+                <td style="text-align: left"><input type="text" style="text-align: left"></td>
+                <td>b</td>
+                <td>1</td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+            </tr>
+            <tr class="total-row" id="totalRow">
+                <td colspan="4" style="text-align: left">TOTAL</td>
+                <td><input type="text" id="totalCantitate" value="0.00" readonly></td>
+                <td></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td><input type="text"></td>
+                <td></td>
+                <td><input type="text" id="totalValoare" value="0.00" readonly></td>
+                <td><input type="text"></td>
+            </tr>
+        </tbody>
+    </table>
+
+    <div class="footer">
+        <div>COMISIA DE RECEPȚIE,</div>
+        <div>PATRON ADMINISTRATOR,</div>
+        <div>ÎNTOCMIT,</div>
+        <div>GESTIONAR,</div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let isCreatingRow = false;  // Flag to prevent multiple row creations
+
+        function deleteRow(button) {
+            const row = button.closest('tr');
+            row.remove();
+            renumberRows();
+            recalculateTotals();
+        }
+
+        function renumberRows() {
+            const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
+            rows.forEach((row, index) => {
+                const firstCell = row.cells[0];
+                const deleteButton = firstCell.querySelector('.delete-row');
+                
+                // Clear the cell completely first
+                firstCell.innerHTML = '';
+                
+                // Add row number as text content
+                const numSpan = document.createElement('span');
+                numSpan.className = 'row-number';
+                numSpan.textContent = (index + 1);
+                firstCell.appendChild(numSpan);
+                
+                // Append delete button if it exists
+                if (deleteButton) {
+                    firstCell.appendChild(deleteButton);
+                } else {
+                    // Create a new delete button if it doesn't exist
+                    const newDeleteButton = document.createElement('button');
+                    newDeleteButton.type = 'button';
+                    newDeleteButton.className = 'delete-row';
+                    newDeleteButton.innerHTML = '×';
+                    newDeleteButton.onclick = function() { deleteRow(this); };
+                    firstCell.appendChild(newDeleteButton);
+                }
+            });
+        }
+
+        function calculateRowTotal(row) {
+            const quantity = parseFloat(row.querySelector('td:nth-child(5) input').value) || 0;
+            const unitPrice = parseFloat(row.querySelector('td:nth-child(10) input').value) || 0;
+            const totalPrice = quantity * unitPrice;
+            row.querySelector('td:nth-child(11) input').value = totalPrice.toFixed(2);
+            recalculateTotals();
+        }
+
+        function setupRowEventListeners(row) {
+            const quantityInput = row.querySelector('td:nth-child(5) input');
+            const unitPriceInput = row.querySelector('td:nth-child(10) input');
+            
+            // Remove existing event listeners if any
+            quantityInput.removeEventListener('input', () => calculateRowTotal(row));
+            unitPriceInput.removeEventListener('input', () => calculateRowTotal(row));
+            
+            // Add new event listeners
+            quantityInput.addEventListener('input', () => calculateRowTotal(row));
+            unitPriceInput.addEventListener('input', () => calculateRowTotal(row));
+        }
+
+        function createEmptyRow() {
+            const totalRow = document.getElementById('totalRow');
+            const emptyRow = document.getElementById('emptyRow');
+            const newRow = emptyRow.cloneNode(true);
+            
+            // Clear all input values in the new row
+            newRow.querySelectorAll('input').forEach(input => {
+                input.value = '';
+            });
+            
+            // Transfer the emptyRow ID to the new row
+            newRow.id = 'emptyRow';
+            emptyRow.id = '';
+            
+            // Insert the new row before the total row
+            totalRow.parentNode.insertBefore(newRow, totalRow);
+            
+            // Add event listeners to the new row's inputs
+            newRow.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', checkEmptyRow);
+            });
+
+            // Setup event listeners for total calculation
+            setupRowEventListeners(newRow);
+
+            // Renumber rows after adding new row
+            renumberRows();
+        }
+
+        function checkEmptyRow(event) {
+            const emptyRow = document.getElementById('emptyRow');
+            const hasData = Array.from(emptyRow.querySelectorAll('input')).some(input => input.value.trim() !== '');
+            
+            if (hasData) {
+                createEmptyRow();
+            }
+        }
+
+        function recalculateTotals() {
+            const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
+            let totalCantitate = 0;
+            let totalValoare = 0;
+
+            rows.forEach(row => {
+                const cantitate = parseFloat(row.querySelector('td:nth-child(5) input').value) || 0;
+                const valoare = parseFloat(row.querySelector('td:nth-child(11) input').value) || 0;
+                
+                totalCantitate += cantitate;
+                totalValoare += valoare;
+            });
+
+            document.getElementById('totalCantitate').value = totalCantitate.toFixed(2);
+            document.getElementById('totalValoare').value = totalValoare.toFixed(2);
+        }
+
+        function parseAndUpdateTable() {
+            const text = document.getElementById('bulkInput').value;
+            var lines = text.split('\n').filter(line => line.trim() !== '');
+            lines = lines.slice(0, Math.ceil(lines.length / 2));
+            
+            // Define regex patterns
+            const produsPattern = /(\d{1,3})\s\d{4}-\d\s(\d{1,3})\s(.*?)\s(\d{1,3}\.\d{1,2})\s(\d{1,5}\.\d{1,2})/;
+            const codeSearchPattern = /\d{4}-\d/;
+            const datePattern = /([0-3]\d[0-1]\d202\d)/;
+            const nrFacturaPattern = /([6-7]\d{7})/;
+            
+            // Clear existing rows except the empty row and total row
+            const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
+            rows.forEach(row => row.remove());
+            
+            // Extract invoice number and date from specific lines
+            let invoiceNumber = '';
+            let invoiceDate = '';
+            
+            // Get invoice number from line 16 (index 15)
+            if (lines.length > 15) {
+                const line16 = lines[15];
+                const numbers = line16.match(/\d+/g);
+                if (numbers && numbers.length > 0) {
+                    invoiceNumber = numbers[numbers.length - 1];
+                }
+            }
+            
+            // Get date from line 17 (index 16)
+            if (lines.length > 16) {
+                const line17 = lines[16];
+                const numbers = line17.match(/\d+/g);
+                if (numbers && numbers.length > 0) {
+                    invoiceDate = numbers[numbers.length - 1];
+                }
+            }
+            
+            // Update invoice fields if found
+            if (invoiceNumber) {
+                document.querySelector('.document-info tr:last-child td:nth-child(2) input').value = invoiceNumber;
+            }
+            if (invoiceDate) {
+                document.querySelector('.document-info tr:last-child td:nth-child(3) input').value = invoiceDate;
+            }
+            
+            // Add new rows based on the input
+            lines.forEach(line => {
+                const match = line.match(produsPattern);
+                if (match) {
+                    const [_, nrCrt, bucati, nume, pretUnitar, pretTotal] = match;
+                    const emptyRow = document.getElementById('emptyRow');
+                    
+                    // Create a new table row
+                    const newRow = document.createElement('tr');
+                    newRow.className = 'data-row';
+                    
+                    // Copy the cells from the empty row
+                    for (let i = 0; i < emptyRow.cells.length; i++) {
+                        const newCell = document.createElement('td');
+                        
+                        // First cell (row number) - just add a span for the number
+                        if (i === 0) {
+                            newCell.innerHTML = '';
+                            // Delete button is added later by renumberRows()
+                        } 
+                        // Second cell (name) - copy with left alignment
+                        else if (i === 1) {
+                            newCell.style.textAlign = 'left';
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            input.style.textAlign = 'left';
+                            newCell.appendChild(input);
+                        }
+                        // Fixed cells (symbol and U/M)
+                        else if (i === 2) {
+                            newCell.textContent = 'b';
+                        }
+                        else if (i === 3) {
+                            newCell.textContent = '1';
+                        }
+                        // All other cells - add inputs
+                        else {
+                            const input = document.createElement('input');
+                            input.type = 'text';
+                            newCell.appendChild(input);
+                        }
+                        
+                        newRow.appendChild(newCell);
+                    }
+                    
+                    // Set the values
+                    newRow.querySelector('td:nth-child(2) input').value = nume.trim();
+                    newRow.querySelector('td:nth-child(5) input').value = bucati;
+                    newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
+                    newRow.querySelector('td:nth-child(11) input').value = pretTotal;
+                    
+                    // Insert before the empty row
+                    emptyRow.parentNode.insertBefore(newRow, emptyRow);
+                    
+                    // Setup event listeners
+                    setupRowEventListeners(newRow);
+                }
+            });
+            
+            // Renumber rows and recalculate totals
+            renumberRows();
+            recalculateTotals();
+        }
+
+        // Add event listeners to all quantity and value inputs
+        document.addEventListener('DOMContentLoaded', function() {
+            // Setup event listeners for all existing rows
+            const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
+            rows.forEach(row => {
+                setupRowEventListeners(row);
+            });
+
+            // Setup event listeners for the empty row
+            const emptyRow = document.getElementById('emptyRow');
+            setupRowEventListeners(emptyRow);
+            emptyRow.querySelectorAll('input').forEach(input => {
+                input.addEventListener('input', checkEmptyRow);
+            });
+
+            // Initial row numbering
+            renumberRows();
+        });
+    </script>
+</body>
+</html> 

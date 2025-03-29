@@ -105,7 +105,7 @@
         }
         .main-table th {
             background-color: #fff;
-            font-weight: normal;
+            font-weight: lighter;
         }
         .main-table input {
             width: 100%;
@@ -197,7 +197,7 @@
                 visibility: visible !important;
                 border: 1px solid #000 !important;
                 page-break-inside: avoid !important;
-                padding: 2px !important;
+                padding: 1px !important;
                 height: auto !important;
                 min-height: 20px !important;
             }
@@ -260,14 +260,13 @@
             .row-number {
                 display: inline-block !important;
                 visibility: visible !important;
-                font-weight: bold !important;
             }
             /* Ensure headers are visible */
             .main-table th {
                 background-color: #f8f9fa !important;
-                font-weight: normal !important;
+                font-weight: lighter !important;
                 text-align: center !important;
-                font-size: 10px !important;
+                font-size: 9px !important;
             }
         }
         .delete-row {
@@ -322,18 +321,53 @@
             background-color: transparent;
         }
         .row-number {
-            font-weight: bold;
+            font-weight: lighter;
         }
         .receipt-header-text {
             font-weight: bold;
             font-size: 14px;
         }
+        .supplier-selector {
+            margin-bottom: 10px;
+            padding: 5px 0;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .supplier-selector .form-check {
+            display: inline-block;
+            margin-right: 15px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+        .supplier-selector .form-check-input:checked {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .supplier-selector .form-check-label {
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+        .supplier-selector .form-check-input:checked + .form-check-label {
+            color: #007bff;
+        }
     </style>
 </head>
 <body>
     <div class="text-input-container no-print">
+        <div class="supplier-selector">
+            <div class="form-check">
+                <input type="radio" class="form-check-input" id="avonSupplier" name="supplier" value="Avon" checked>
+                <label class="form-check-label" for="avonSupplier">Avon</label>
+            </div>
+            <div class="form-check">
+                <input type="radio" class="form-check-input" id="outletSupplier" name="supplier" value="Outlet">
+                <label class="form-check-label" for="outletSupplier">Outlet</label>
+            </div>
+        </div>
         <textarea id="bulkInput" placeholder="Deschizi factura, apesi ctrl+a, apesi ctrl+c, dai click aici, apesi ctrl+v, apesi butonul Go"></textarea>
-        <button onclick="parseAndUpdateTable()">Go</button>
+        <div class="d-flex justify-content-between align-items-center">
+            <button onclick="parseAndUpdateTable()" class="btn btn-primary">Go</button>
+            <span id="processingStatus" class="text-muted" style="font-size: 12px;"></span>
+        </div>
     </div>
 
     <div class="receipt-header">
@@ -375,17 +409,17 @@
     <table class="main-table">
         <thead>
             <tr>
-                <th>Nr.<br>crt</th>
-                <th style="width: 25%">DENUMIREA</th>
-                <th>Simbol<br>C.T.C.</th>
-                <th>U/M</th>
+                <th style="width: 3%">Nr.<br>crt</th>
+                <th style="width: 45%">DENUMIREA</th>
+                <th style="width: 4%">Simbol<br>C.T.C.</th>
+                <th style="width: 3%">U/M</th>
                 <th>Cantitatea</th>
                 <th>Preț fără<br>T.V.A.</th>
                 <th>Valoare fără<br>T.V.A.</th>
                 <th>T.V.A.<br>deductibil</th>
                 <th>Valoare cu<br>T.V.A.</th>
                 <th>Preț de<br>vânzare</th>
-                <th>Valoare la<br>preț de vânzare</th>
+                <th style="width: 7%">Valoare la<br>preț de vânzare</th>
                 <th>Adaos<br>comercial<br>lei</th>
             </tr>
         </thead>
@@ -428,6 +462,22 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let isCreatingRow = false;  // Flag to prevent multiple row creations
+
+        // Update supplier when radio button changes
+        document.addEventListener('DOMContentLoaded', function() {
+            const supplierRadios = document.querySelectorAll('input[name="supplier"]');
+            const supplierField = document.querySelector('.document-info tr:last-child td:nth-child(4) input');
+            
+            supplierRadios.forEach(radio => {
+                radio.addEventListener('change', function() {
+                    if (this.value === 'Avon') {
+                        supplierField.value = 'SC AVON COSMETICS SRL';
+                    } else if (this.value === 'Outlet') {
+                        supplierField.value = '';
+                    }
+                });
+            });
+        });
 
         function deleteRow(button) {
             const row = button.closest('tr');
@@ -544,38 +594,80 @@
 
         function parseAndUpdateTable() {
             const text = document.getElementById('bulkInput').value;
-            var lines = text.split('\n').filter(line => line.trim() !== '');
-            lines = lines.slice(0, Math.ceil(lines.length / 2));
+            const statusElement = document.getElementById('processingStatus');
+            
+            if (!text.trim()) {
+                statusElement.textContent = 'Nu a fost introdus text pentru procesare.';
+                statusElement.className = 'text-danger';
+                return;
+            }
+            
+            statusElement.textContent = 'Procesare...';
+            statusElement.className = 'text-info';
+            
+            // Use setTimeout to allow the UI to update before heavy processing
+            setTimeout(() => {
+                try {
+                    var lines = text.split('\n').filter(line => line.trim() !== '');
+                    
+                    // Clear existing rows except the empty row and total row
+                    const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
+                    rows.forEach(row => row.remove());
+                    
+                    // Check which supplier is selected
+                    const isAvon = document.getElementById('avonSupplier').checked;
+                    
+                    if (isAvon) {
+                        parseAvonInvoice(lines);
+                    } else {
+                        parseOutletInvoice(lines);
+                    }
+                    
+                    // Renumber rows and recalculate totals
+                    renumberRows();
+                    recalculateTotals();
+                    
+                    const productCount = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)').length;
+                    statusElement.textContent = `Procesare completă: ${productCount} produse importate.`;
+                    statusElement.className = 'text-success';
+                } catch (error) {
+                    console.error('Error parsing input:', error);
+                    statusElement.textContent = 'Eroare la procesare. Verifică consola pentru detalii.';
+                    statusElement.className = 'text-danger';
+                }
+            }, 50);
+        }
+        
+        function parseAvonInvoice(lines) {
+            console.log(`Processing Avon invoice with ${lines.length} lines`);
+            
+            // Avon is always duplicated, so we only process the first half
+            let truncatedLines = lines.slice(0, Math.ceil(lines.length / 2));
             
             // Define regex patterns
             const produsPattern = /(\d{1,3})\s\d{4}-\d\s(\d{1,3})\s(.*?)\s(\d{1,3}\.\d{1,2})\s(\d{1,5}\.\d{1,2})/;
-            const codeSearchPattern = /\d{4}-\d/;
-            const datePattern = /([0-3]\d[0-1]\d202\d)/;
-            const nrFacturaPattern = /([6-7]\d{7})/;
-            
-            // Clear existing rows except the empty row and total row
-            const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
-            rows.forEach(row => row.remove());
             
             // Extract invoice number and date from specific lines
             let invoiceNumber = '';
             let invoiceDate = '';
             
             // Get invoice number from line 16 (index 15)
-            if (lines.length > 15) {
-                const line16 = lines[15];
+            if (truncatedLines.length > 15) {
+                const line16 = truncatedLines[15];
                 const numbers = line16.match(/\d+/g);
                 if (numbers && numbers.length > 0) {
                     invoiceNumber = numbers[numbers.length - 1];
+                    console.log(`Found invoice number: ${invoiceNumber}`);
                 }
             }
             
             // Get date from line 17 (index 16)
-            if (lines.length > 16) {
-                const line17 = lines[16];
+            if (truncatedLines.length > 16) {
+                const line17 = truncatedLines[16];
                 const numbers = line17.match(/\d+/g);
                 if (numbers && numbers.length > 0) {
                     invoiceDate = numbers[numbers.length - 1];
+                    console.log(`Found invoice date: ${invoiceDate}`);
                 }
             }
             
@@ -587,68 +679,180 @@
                 document.querySelector('.document-info tr:last-child td:nth-child(3) input').value = invoiceDate;
             }
             
+            // Keep track of how many products we found
+            let productCount = 0;
+            
             // Add new rows based on the input
-            lines.forEach(line => {
+            truncatedLines.forEach(line => {
                 const match = line.match(produsPattern);
                 if (match) {
                     const [_, nrCrt, bucati, nume, pretUnitar, pretTotal] = match;
-                    const emptyRow = document.getElementById('emptyRow');
-                    
-                    // Create a new table row
-                    const newRow = document.createElement('tr');
-                    newRow.className = 'data-row';
-                    
-                    // Copy the cells from the empty row
-                    for (let i = 0; i < emptyRow.cells.length; i++) {
-                        const newCell = document.createElement('td');
-                        
-                        // First cell (row number) - just add a span for the number
-                        if (i === 0) {
-                            newCell.innerHTML = '';
-                            // Delete button is added later by renumberRows()
-                        } 
-                        // Second cell (name) - copy with left alignment
-                        else if (i === 1) {
-                            newCell.style.textAlign = 'left';
-                            const input = document.createElement('input');
-                            input.type = 'text';
-                            input.style.textAlign = 'left';
-                            newCell.appendChild(input);
-                        }
-                        // Fixed cells (symbol and U/M)
-                        else if (i === 2) {
-                            newCell.textContent = 'b';
-                        }
-                        else if (i === 3) {
-                            newCell.textContent = '1';
-                        }
-                        // All other cells - add inputs
-                        else {
-                            const input = document.createElement('input');
-                            input.type = 'text';
-                            newCell.appendChild(input);
-                        }
-                        
-                        newRow.appendChild(newCell);
-                    }
-                    
-                    // Set the values
-                    newRow.querySelector('td:nth-child(2) input').value = nume.trim();
-                    newRow.querySelector('td:nth-child(5) input').value = bucati;
-                    newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
-                    newRow.querySelector('td:nth-child(11) input').value = pretTotal;
-                    
-                    // Insert before the empty row
-                    emptyRow.parentNode.insertBefore(newRow, emptyRow);
-                    
-                    // Setup event listeners
-                    setupRowEventListeners(newRow);
+                    addProductRow(nume.trim(), bucati, pretUnitar, pretTotal);
+                    productCount++;
                 }
             });
             
-            // Renumber rows and recalculate totals
-            renumberRows();
-            recalculateTotals();
+            console.log(`Found ${productCount} products in Avon invoice`);
+        }
+        
+        function parseOutletInvoice(lines) {
+            console.log(`Processing Outlet invoice with ${lines.length} lines`);
+
+            // Extract invoice number and date from first two lines
+            let invoiceNumber = '';
+            let invoiceDate = '';
+            
+            // For Outlet, invoice number is in line 1
+            if (lines.length > 0) {
+                // Extract numeric part that usually follows FACTURA REF51060
+                const line1 = lines[0];
+                const invoiceMatch = line1.match(/FACTURA (REF\d+)/i);
+                if (invoiceMatch && invoiceMatch[1]) {
+                    invoiceNumber = invoiceMatch[1];
+                    console.log(`Found invoice number: ${invoiceNumber}`);
+                }
+            }
+            
+            // For Outlet, date is in line 2
+            if (lines.length > 1) {
+                const line2 = lines[1];
+                // Look for date pattern in various formats
+                const dateMatch = line2.match(/(\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4})/);
+                if (dateMatch && dateMatch[1]) {
+                    invoiceDate = dateMatch[1];
+                    console.log(`Found invoice date: ${invoiceDate}`);
+                }
+            }
+            
+            // Update invoice fields if found
+            if (invoiceNumber) {
+                document.querySelector('.document-info tr:last-child td:nth-child(2) input').value = invoiceNumber;
+            }
+            if (invoiceDate) {
+                document.querySelector('.document-info tr:last-child td:nth-child(3) input').value = invoiceDate;
+            }
+
+            // When we find a line containing "Cod NC":
+            // if the line contains "pcs" we take the text after "pcs" and add it to the previous line
+            // then we remove the current line
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes("Cod NC")) {
+                    if (lines[i].includes("pcs")) {
+                        lines[i-1] = lines[i-1] + " pcs" + lines[i].split("pcs")[1];
+                    } 
+                    lines.splice(i, 1);
+                    i--; // Adjust index since we removed an element
+                }
+            }
+
+            // it's ok if the lines after current line is regex \d{1-3} or Pagina \d{1-3} din \d{1-3} or regex (\d{13}), 
+            // else we add the next line to the current line
+            // we do it twice as some items are spread over 3 lines
+            for (let j = 0; j < 2; j++) {
+                for (let i = 0; i < lines.length - 1; i++) {
+                    if (lines[i].match(/(\d{13})/) && !lines[i+1].match(/(^\d{1,3}$)/) && !lines[i+1].match(/^Pagina \d{1,3} din \d{1,3}/) && !lines[i+1].match(/(\d{13})/)) {
+                        lines[i] = lines[i] + " " + lines[i + 1];
+                        lines.splice(i + 1, 1);
+                        i--; // Adjust index since we removed an element
+                    }
+                }
+            }
+
+            // print the processed lines
+            console.log(lines);
+            
+            // For Outlet, we use a different pattern that matches their invoice format
+            const produsPattern = /(\(\d{13}\).*?)pcs\s(\d+)\s(\d+\.\d+)\s/;
+            
+            // Keep track of how many products we found
+            let productCount = 0;
+            
+            // Process each line for products
+            lines.forEach(line => {
+                const match = line.match(produsPattern);
+                if (match) {
+                    // Skip lines that likely aren't products (too short product name)
+                    const [_, nume, bucati, pretUnitar] = match;
+                    if (nume.trim().length > 3) {
+                        addProductRow(nume.trim(), bucati, pretUnitar);
+                        productCount++;
+                    }
+                }
+            });
+            
+            console.log(`Found ${productCount} products in Outlet invoice`);
+        }
+        
+        function addProductRow(nume, bucati, pretUnitar, pretTotal) {
+            const emptyRow = document.getElementById('emptyRow');
+            
+            // Create a new table row
+            const newRow = document.createElement('tr');
+            newRow.className = 'data-row';
+            
+            // Copy the cells from the empty row
+            for (let i = 0; i < emptyRow.cells.length; i++) {
+                const newCell = document.createElement('td');
+                
+                // First cell (row number) - just add a span for the number
+                if (i === 0) {
+                    newCell.innerHTML = '';
+                    // Delete button is added later by renumberRows()
+                } 
+                // Second cell (name) - copy with left alignment
+                else if (i === 1) {
+                    newCell.style.textAlign = 'left';
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    input.style.textAlign = 'left';
+                    newCell.appendChild(input);
+                }
+                // Fixed cells (symbol and U/M)
+                else if (i === 2) {
+                    newCell.textContent = 'b';
+                }
+                else if (i === 3) {
+                    newCell.textContent = '1';
+                }
+                // All other cells - add inputs
+                else {
+                    const input = document.createElement('input');
+                    input.type = 'text';
+                    newCell.appendChild(input);
+                }
+                
+                newRow.appendChild(newCell);
+            }
+
+            const isAvon = document.getElementById('avonSupplier').checked;
+            if (isAvon) {
+                // Set the values
+                newRow.querySelector('td:nth-child(2) input').value = nume;
+                newRow.querySelector('td:nth-child(5) input').value = bucati;
+                newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
+                newRow.querySelector('td:nth-child(11) input').value = pretTotal;
+            } else {
+                pretUnitar = parseInt(pretUnitar) * 1.19 * 2;
+                pretUnitar = pretUnitar.toFixed(2);
+
+                //round pretUnitar to the nearest number divisible by 5
+                pretUnitar = Math.round(pretUnitar / 5) * 5;
+
+                pretTotal = parseInt(pretUnitar) * parseInt(bucati);
+                pretTotal = pretTotal.toFixed(2);
+
+                // Set the values
+                newRow.querySelector('td:nth-child(2) input').value = nume;
+                newRow.querySelector('td:nth-child(5) input').value = bucati;
+                newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
+                newRow.querySelector('td:nth-child(11) input').value = pretTotal;
+            }
+            
+            // Insert before the empty row
+            emptyRow.parentNode.insertBefore(newRow, emptyRow);
+            
+            // Setup event listeners
+            setupRowEventListeners(newRow);
         }
 
         // Add event listeners to all quantity and value inputs

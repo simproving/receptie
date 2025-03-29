@@ -362,8 +362,12 @@
                 <input type="radio" class="form-check-input" id="outletSupplier" name="supplier" value="Outlet">
                 <label class="form-check-label" for="outletSupplier">Outlet</label>
             </div>
+            <div class="form-check">
+                <input type="radio" class="form-check-input" id="argintSupplier" name="supplier" value="Argint">
+                <label class="form-check-label" for="argintSupplier">Argint</label>
+            </div>
         </div>
-        <textarea id="bulkInput" placeholder="Deschizi factura, apesi ctrl+a, apesi ctrl+c, dai click aici, apesi ctrl+v, apesi butonul Go"></textarea>
+        <textarea id="bulkInput" placeholder="Deschizi factura (nu in email), apesi ctrl+a, apesi ctrl+c, dai click aici, apesi ctrl+v, apesi butonul Go"></textarea>
         <div class="d-flex justify-content-between align-items-center">
             <button onclick="parseAndUpdateTable()" class="btn btn-primary">Go</button>
             <span id="processingStatus" class="text-muted" style="font-size: 12px;"></span>
@@ -473,6 +477,8 @@
                     if (this.value === 'Avon') {
                         supplierField.value = 'SC AVON COSMETICS SRL';
                     } else if (this.value === 'Outlet') {
+                        supplierField.value = '';
+                    } else if (this.value === 'Argint') {
                         supplierField.value = '';
                     }
                 });
@@ -616,11 +622,15 @@
                     
                     // Check which supplier is selected
                     const isAvon = document.getElementById('avonSupplier').checked;
+                    const isOutlet = document.getElementById('outletSupplier').checked;
+                    const isArgint = document.getElementById('argintSupplier').checked;
                     
                     if (isAvon) {
                         parseAvonInvoice(lines);
-                    } else {
+                    } else if (isOutlet) {
                         parseOutletInvoice(lines);
+                    } else if (isArgint) {
+                        parseArgintInvoice(lines);
                     }
                     
                     // Renumber rows and recalculate totals
@@ -783,6 +793,59 @@
             console.log(`Found ${productCount} products in Outlet invoice`);
         }
         
+        function parseArgintInvoice(lines) {
+            console.log(`Processing Argint invoice with ${lines.length} lines`);
+            
+            // Extract invoice number and date
+            let invoiceNumber = '';
+            let invoiceDate = '';
+            
+            // line 10 for date
+            if (lines.length > 9) {
+                invoiceDate = lines[9];
+                // match the date format \d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}
+                invoiceDate = invoiceDate.match(/\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}/)[0];
+            }
+
+            // line 9 for invoice number, regex /\d{4}$/
+            if (lines.length > 8) {
+                invoiceNumber = lines[8];
+                // the invoice number is the last 4 digits of the line
+                invoiceNumber = invoiceNumber.match(/\d{4}$/)[0];
+            }
+
+            // Update invoice fields if found
+            if (invoiceNumber) {
+                document.querySelector('.document-info tr:last-child td:nth-child(2) input').value = invoiceNumber;
+            }
+            if (invoiceDate) {
+                document.querySelector('.document-info tr:last-child td:nth-child(3) input').value = invoiceDate;
+            }
+            
+            // Process lines to look for product entries
+            // For Argint, the product pattern is different
+            const produsPattern = /^(\d+)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/;
+            
+            let productCount = 0;
+            
+            // Process each line for products
+            lines.forEach(line => {
+                const match = line.match(produsPattern);
+                if (match) {
+                    // Extract product details
+                    const [_, nrCrt, nume, bucati, pretUnitar, pretTotal] = match;
+                    
+                    // Skip header rows that might match the pattern accidentally
+                    if (!nume.match(/denumire|produs|articol/i)) {
+                        addProductRow(nume.trim(), bucati, pretUnitar, pretTotal);
+                        productCount++;
+                    }
+                }
+            });
+            
+            console.log(`Found ${productCount} products in Argint invoice`);
+        }
+        
         function addProductRow(nume, bucati, pretUnitar, pretTotal) {
             const emptyRow = document.getElementById('emptyRow');
             
@@ -825,13 +888,17 @@
             }
 
             const isAvon = document.getElementById('avonSupplier').checked;
+            const isOutlet = document.getElementById('outletSupplier').checked;
+            const isArgint = document.getElementById('argintSupplier').checked;
+            
             if (isAvon) {
-                // Set the values
+                // Set the values for Avon
                 newRow.querySelector('td:nth-child(2) input').value = nume;
                 newRow.querySelector('td:nth-child(5) input').value = bucati;
                 newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
                 newRow.querySelector('td:nth-child(11) input').value = pretTotal;
-            } else {
+            } else if (isOutlet) {
+                // Calculate prices for Outlet
                 pretUnitar = parseInt(pretUnitar) * 1.19 * 2;
                 pretUnitar = pretUnitar.toFixed(2);
 
@@ -839,6 +906,20 @@
                 pretUnitar = Math.round(pretUnitar / 5) * 5;
 
                 pretTotal = parseInt(pretUnitar) * parseInt(bucati);
+                pretTotal = pretTotal.toFixed(2);
+
+                // Set the values
+                newRow.querySelector('td:nth-child(2) input').value = nume;
+                newRow.querySelector('td:nth-child(5) input').value = bucati;
+                newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
+                newRow.querySelector('td:nth-child(11) input').value = pretTotal;
+            } else if (isArgint) {
+                // Calculate prices for Argint - multiply by 1.3 (different markup)
+                pretUnitar = parseFloat(pretUnitar) * 1.3;
+                pretUnitar = Math.ceil(pretUnitar / 10) * 10; // Round up to nearest 10
+                pretUnitar = pretUnitar.toFixed(2);
+
+                pretTotal = parseFloat(pretUnitar) * parseFloat(bucati);
                 pretTotal = pretTotal.toFixed(2);
 
                 // Set the values

@@ -367,9 +367,11 @@
                 <label class="form-check-label" for="argintSupplier">Argint</label>
             </div>
         </div>
-        <textarea id="bulkInput" placeholder="Deschizi factura (nu in email), apesi ctrl+a, apesi ctrl+c, dai click aici, apesi ctrl+v, apesi butonul Go"></textarea>
+        <textarea id="bulkInput" placeholder="Deschizi factura, apesi ctrl+a, apesi ctrl+c, dai click aici, apesi ctrl+v, apesi butonul Procesează
+        Daca copiezi direct din email si factura are mai mult de 3 pagini se poate sa nu se copieze tot textul. 
+        In acest caz deschide factura in Chrome, Firefox sau Adobe Acrobat, apoi copiaza textul."></textarea>
         <div class="d-flex justify-content-between align-items-center">
-            <button onclick="parseAndUpdateTable()" class="btn btn-primary">Go</button>
+            <button onclick="parseAndUpdateTable()" class="btn btn-primary">Procesează</button>
             <span id="processingStatus" class="text-muted" style="font-size: 12px;"></span>
         </div>
     </div>
@@ -611,6 +613,10 @@
             statusElement.textContent = 'Procesare...';
             statusElement.className = 'text-info';
             
+            // Clear invoice fields before processing
+            document.querySelector('.document-info tr:last-child td:nth-child(2) input').value = '';
+            document.querySelector('.document-info tr:last-child td:nth-child(3) input').value = '';
+            
             // Use setTimeout to allow the UI to update before heavy processing
             setTimeout(() => {
                 try {
@@ -625,17 +631,29 @@
                     const isOutlet = document.getElementById('outletSupplier').checked;
                     const isArgint = document.getElementById('argintSupplier').checked;
                     
+                    let supplierName = '';
                     if (isAvon) {
+                        supplierName = 'Avon';
                         parseAvonInvoice(lines);
                     } else if (isOutlet) {
+                        supplierName = 'Outlet';
                         parseOutletInvoice(lines);
                     } else if (isArgint) {
+                        supplierName = 'Argint';
                         parseArgintInvoice(lines);
                     }
                     
                     // Renumber rows and recalculate totals
                     renumberRows();
                     recalculateTotals();
+                    
+                    // Get the invoice number and date from the form
+                    const invoiceNumber = document.querySelector('.document-info tr:last-child td:nth-child(2) input').value;
+                    const invoiceDate = document.querySelector('.document-info tr:last-child td:nth-child(3) input').value;
+                    
+                    // Set the page title
+                    const title = `Receptie-${supplierName}-${invoiceDate}-${invoiceNumber}`;
+                    document.title = title;
                     
                     const productCount = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)').length;
                     statusElement.textContent = `Procesare completă: ${productCount} produse importate.`;
@@ -800,18 +818,23 @@
             let invoiceNumber = '';
             let invoiceDate = '';
             
-            // line 10 for date
-            if (lines.length > 9) {
-                invoiceDate = lines[9];
-                // match the date format \d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}
-                invoiceDate = invoiceDate.match(/\d{1,2}[\/\.\-]\d{1,2}[\/\.\-]\d{2,4}/)[0];
+            // search until we find Data: 28/03/2025
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes("Data:")) {
+                    invoiceDate = lines[i];
+                    // match the date format \d{1,2}\/\d{1,2}\/\d{2,4}
+                    invoiceDate = invoiceDate.match(/Data: (\d{1,2}\/\d{1,2}\/\d{2,4})/)[1];
+                    break;
+                }
             }
 
-            // line 9 for invoice number, regex /\d{4}$/
-            if (lines.length > 8) {
-                invoiceNumber = lines[8];
-                // the invoice number is the last 4 digits of the line
-                invoiceNumber = invoiceNumber.match(/\d{4}$/)[0];
+            // search until we find Telefon:Nr: 2584        
+            for (let i = 0; i < lines.length; i++) {
+                if (lines[i].includes("Telefon:Nr:")) {
+                    // regex Telefon:Nr: \d{4}
+                    invoiceNumber = lines[i].match(/Telefon:Nr: (\d{4})/)[1];
+                    break;
+                }
             }
 
             // Update invoice fields if found
@@ -823,23 +846,17 @@
             }
             
             // Process lines to look for product entries
-            // For Argint, the product pattern is different
-            const produsPattern = /^(\d+)\s+(.+?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)\s+(\d+(?:\.\d+)?)/;
+            const produsPattern = /(0\d{7,9}\s.*?\s*[A-Z]+)\sbuc\s(-*\d+)\s(\d+\.\d+)/g;
             
             let productCount = 0;
             
             // Process each line for products
             lines.forEach(line => {
-                const match = line.match(produsPattern);
-                if (match) {
-                    // Extract product details
-                    const [_, nrCrt, nume, bucati, pretUnitar, pretTotal] = match;
-                    
-                    // Skip header rows that might match the pattern accidentally
-                    if (!nume.match(/denumire|produs|articol/i)) {
-                        addProductRow(nume.trim(), bucati, pretUnitar, pretTotal);
-                        productCount++;
-                    }
+                const matches = line.matchAll(produsPattern);
+                for (const match of matches) {
+                    const [_, nume, bucati, pretUnitar] = match;
+                    addProductRow(nume.trim(), bucati, pretUnitar);
+                    productCount++;
                 }
             });
             
@@ -902,8 +919,7 @@
                 pretUnitar = parseInt(pretUnitar) * 1.19 * 2;
                 pretUnitar = pretUnitar.toFixed(2);
 
-                //round pretUnitar to the nearest number divisible by 5
-                pretUnitar = Math.round(pretUnitar / 5) * 5;
+                pretUnitar = Math.round(pretUnitar / 5) * 5; // Round to nearest 5
 
                 pretTotal = parseInt(pretUnitar) * parseInt(bucati);
                 pretTotal = pretTotal.toFixed(2);
@@ -914,9 +930,8 @@
                 newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
                 newRow.querySelector('td:nth-child(11) input').value = pretTotal;
             } else if (isArgint) {
-                // Calculate prices for Argint - multiply by 1.3 (different markup)
-                pretUnitar = parseFloat(pretUnitar) * 1.3;
-                pretUnitar = Math.ceil(pretUnitar / 10) * 10; // Round up to nearest 10
+                pretUnitar = parseFloat(pretUnitar) * 1.19 * 2;
+                pretUnitar = Math.ceil(pretUnitar / 5) * 5; // Round up to nearest 5
                 pretUnitar = pretUnitar.toFixed(2);
 
                 pretTotal = parseFloat(pretUnitar) * parseFloat(bucati);

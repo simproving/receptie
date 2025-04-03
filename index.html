@@ -113,6 +113,34 @@
             font-size: 10px;
             text-align: center;
         }
+        .main-table td:nth-child(2) {
+            text-align: left;
+            padding: 2px 4px;
+            vertical-align: top;
+        }
+        .main-table td:nth-child(2) input,
+        .main-table td:nth-child(2) textarea {
+            text-align: left;
+            width: 100%;
+            border: none;
+            font-size: 10px;
+            line-height: 1.1;
+            padding: 0;
+            margin: 0;
+            background-color: transparent;
+            text-align: left !important;
+        }
+        .main-table td:nth-child(2) textarea {
+            resize: none;
+            overflow: hidden;
+            height: 20px;
+        }
+        .main-table tr.double-row td:nth-child(2) {
+            height: 36px; /* Double height for long descriptions */
+        }
+        .main-table tr.double-row td:nth-child(2) textarea {
+            height: 32px; /* Double height for textarea */
+        }
         .footer {
             display: flex;
             justify-content: space-between;
@@ -416,17 +444,17 @@
         <thead>
             <tr>
                 <th style="width: 3%">Nr.<br>crt</th>
-                <th style="width: 45%">DENUMIREA</th>
+                <th>DENUMIREA</th>
                 <th style="width: 4%">Simbol<br>C.T.C.</th>
                 <th style="width: 3%">U/M</th>
-                <th>Cantitatea</th>
-                <th>Preț fără<br>T.V.A.</th>
-                <th>Valoare fără<br>T.V.A.</th>
-                <th>T.V.A.<br>deductibil</th>
-                <th>Valoare cu<br>T.V.A.</th>
-                <th>Preț de<br>vânzare</th>
+                <th style="width: 5%">Cantitate</th>
+                <th style="width: 3%">Preț fără<br>T.V.A.</th>
+                <th style="width: 4%">Valoare fără<br>T.V.A.</th>
+                <th style="width: 5%">T.V.A.<br>deductibil</th>
+                <th style="width: 5%">Valoare cu<br>T.V.A.</th>
+                <th style="width: 5%">Preț de<br>vânzare</th>
                 <th style="width: 7%">Valoare la<br>preț de vânzare</th>
-                <th>Adaos<br>comercial<br>lei</th>
+                <th style="width: 6%">Adaos<br>comercial<br>lei</th>
             </tr>
         </thead>
         <tbody id="itemsTable">
@@ -790,23 +818,23 @@
             console.log(lines);
             
             // For Outlet, we use a different pattern that matches their invoice format
-            const produsPattern = /(\(\d{13}\).*?)pcs\s(\d+)\s(\d+\.\d+)\s/;
+            const produsPattern = /(\(\d{12,14}\).*?)pcs\s(\d+)\s(\d+\.\d+)\s/g;
             
             // Keep track of how many products we found
             let productCount = 0;
             
-            // Process each line for products
-            lines.forEach(line => {
-                const match = line.match(produsPattern);
-                if (match) {
-                    // Skip lines that likely aren't products (too short product name)
-                    const [_, nume, bucati, pretUnitar] = match;
-                    if (nume.trim().length > 3) {
-                        addProductRow(nume.trim(), bucati, pretUnitar);
-                        productCount++;
-                    }
+            // Join all lines with spaces and process the combined text
+            const combinedText = lines.join(' ');
+            const matches = combinedText.matchAll(produsPattern);
+            
+            for (const match of matches) {
+                // Skip lines that likely aren't products (too short product name)
+                const [_, nume, bucati, pretUnitar] = match;
+                if (nume.trim().length > 3) {
+                    addProductRow(nume.trim(), bucati, pretUnitar);
+                    productCount++;
                 }
-            });
+            }
             
             console.log(`Found ${productCount} products in Outlet invoice`);
         }
@@ -879,13 +907,29 @@
                     newCell.innerHTML = '';
                     // Delete button is added later by renumberRows()
                 } 
-                // Second cell (name) - copy with left alignment
+                // Second cell (name) - use textarea only if description is long
                 else if (i === 1) {
                     newCell.style.textAlign = 'left';
-                    const input = document.createElement('input');
-                    input.type = 'text';
-                    input.style.textAlign = 'left';
-                    newCell.appendChild(input);
+                    let inputElement;
+                    
+                    if (nume.length > 70) {
+                        inputElement = document.createElement('textarea');
+                        inputElement.style.resize = 'none';
+                        inputElement.style.overflow = 'hidden';
+                        inputElement.style.height = '20px';
+                    } else {
+                        inputElement = document.createElement('input');
+                        inputElement.type = 'text';
+                    }
+                    
+                    inputElement.style.width = '100%';
+                    inputElement.style.border = 'none';
+                    inputElement.style.fontSize = '10px';
+                    inputElement.style.lineHeight = '1.1';
+                    inputElement.style.padding = '0';
+                    inputElement.style.margin = '0';
+                    inputElement.style.backgroundColor = 'transparent';
+                    newCell.appendChild(inputElement);
                 }
                 // Fixed cells (symbol and U/M)
                 else if (i === 2) {
@@ -910,7 +954,7 @@
             
             if (isAvon) {
                 // Set the values for Avon
-                newRow.querySelector('td:nth-child(2) input').value = nume;
+                newRow.querySelector('td:nth-child(2) input, td:nth-child(2) textarea').value = nume;
                 newRow.querySelector('td:nth-child(5) input').value = bucati;
                 newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
                 newRow.querySelector('td:nth-child(11) input').value = pretTotal;
@@ -919,13 +963,14 @@
                 pretUnitar = parseInt(pretUnitar) * 1.19 * 2;
                 pretUnitar = pretUnitar.toFixed(2);
 
-                pretUnitar = Math.round(pretUnitar / 5) * 5; // Round to nearest 5
+                //round pretUnitar to the nearest number divisible by 5
+                pretUnitar = Math.round(pretUnitar / 5) * 5;
 
                 pretTotal = parseInt(pretUnitar) * parseInt(bucati);
                 pretTotal = pretTotal.toFixed(2);
 
                 // Set the values
-                newRow.querySelector('td:nth-child(2) input').value = nume;
+                newRow.querySelector('td:nth-child(2) input, td:nth-child(2) textarea').value = nume;
                 newRow.querySelector('td:nth-child(5) input').value = bucati;
                 newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
                 newRow.querySelector('td:nth-child(11) input').value = pretTotal;
@@ -938,7 +983,7 @@
                 pretTotal = pretTotal.toFixed(2);
 
                 // Set the values
-                newRow.querySelector('td:nth-child(2) input').value = nume;
+                newRow.querySelector('td:nth-child(2) input, td:nth-child(2) textarea').value = nume;
                 newRow.querySelector('td:nth-child(5) input').value = bucati;
                 newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
                 newRow.querySelector('td:nth-child(11) input').value = pretTotal;

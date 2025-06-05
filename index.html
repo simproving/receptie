@@ -28,7 +28,10 @@
         Daca copiezi direct din email si factura are mai mult de 3 pagini se poate sa nu se copieze tot textul. 
         In acest caz deschide factura in Chrome, Firefox sau Adobe Acrobat, apoi copiaza textul."></textarea>
         <div class="d-flex justify-content-between align-items-center">
-            <button onclick="parseAndUpdateTable()" class="btn btn-primary">Procesează</button>
+            <div>
+                <button onclick="parseAndUpdateTable()" class="btn btn-primary">Procesează</button>
+                <button id="sendToInventory" onclick="sendToInventory()" class="btn btn-success ms-2" style="display: none;">Trimite la inventar</button>
+            </div>
             <span id="processingStatus" class="text-muted" style="font-size: 12px;"></span>
         </div>
     </div>
@@ -125,6 +128,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         let isCreatingRow = false;  // Flag to prevent multiple row creations
+        let currentAvonProducts = null;
 
         // Update supplier when radio button changes
         document.addEventListener('DOMContentLoaded', function() {
@@ -261,6 +265,10 @@
             const text = document.getElementById('bulkInput').value;
             const statusElement = document.getElementById('processingStatus');
             
+            // Hide the "Trimite la inventar" button when starting new processing
+            document.getElementById('sendToInventory').style.display = 'none';
+            currentAvonProducts = null;
+            
             if (!text.trim()) {
                 statusElement.textContent = 'Nu a fost introdus text pentru procesare.';
                 statusElement.className = 'text-danger';
@@ -323,6 +331,11 @@
             }, 50);
         }
         
+        function getStorageKey() {
+            const now = new Date();
+            return `avon-temp-${now.toISOString().replace(/[:.]/g, '-')}`;
+        }
+
         function parseAvonInvoice(lines) {
             console.log(`Processing Avon invoice with ${lines.length} lines`);
             
@@ -367,14 +380,38 @@
             // Keep track of how many products we found
             let productCount = 0;
             
-            // Add new rows based on the input
+            // Array to store all products before processing
+            const products = [];
+            
+            // First pass: collect all products
             truncatedLines.forEach(line => {
                 const match = line.match(produsPattern);
                 if (match) {
                     const [_, nrCrt, bucati, nume, pretUnitar, pretTotal] = match;
-                    addProductRow(nume.trim(), bucati, pretUnitar, pretTotal);
+                    products.push({
+                        nume: nume.trim(),
+                        bucati: bucati,
+                        pretUnitar: pretUnitar,
+                        pretTotal: pretTotal
+                    });
                     productCount++;
                 }
+            });
+
+            // Store products temporarily
+            currentAvonProducts = {
+                invoiceNumber,
+                invoiceDate,
+                products,
+                timestamp: new Date().toISOString()
+            };
+
+            // Show the "Trimite la inventar" button
+            document.getElementById('sendToInventory').style.display = 'inline-block';
+            
+            // Second pass: create rows
+            products.forEach(product => {
+                addProductRow(product.nume, product.bucati, product.pretUnitar, product.pretTotal);
             });
             
             console.log(`Found ${productCount} products in Avon invoice`);
@@ -604,6 +641,32 @@
             
             // Setup event listeners
             setupRowEventListeners(newRow);
+        }
+
+        function sendToInventory() {
+            if (!currentAvonProducts) {
+                alert('Nu există produse de trimis la inventar!');
+                return;
+            }
+
+            const storageKey = getStorageKey();
+            localStorage.setItem(storageKey, JSON.stringify(currentAvonProducts));
+            console.log(`Saved ${currentAvonProducts.products.length} products to localStorage with key: ${storageKey}`);
+            
+            // Clear the temporary storage and hide the button
+            currentAvonProducts = null;
+            document.getElementById('sendToInventory').style.display = 'none';
+            
+            // Show success message
+            const statusElement = document.getElementById('processingStatus');
+            statusElement.textContent = 'Produse trimise cu succes la inventar!';
+            statusElement.className = 'text-success';
+            
+            // Clear the status message after 3 seconds
+            setTimeout(() => {
+                statusElement.textContent = '';
+                statusElement.className = 'text-muted';
+            }, 3000);
         }
 
         // Add event listeners to all quantity and value inputs

@@ -343,7 +343,7 @@
             let truncatedLines = lines.slice(0, Math.ceil(lines.length / 2));
             
             // Define regex patterns
-            const produsPattern = /(\d{1,3})\s\d{4}-\d\s(\d{1,3})\s(.*?)\s(\d{1,3}\.\d{1,2})\s(\d{1,5}\.\d{1,2})/;
+            const produsPattern = /(\d{1,3})\s(\d{4}-\d)\s(\d{1,3})\s(.*?)\s(\d{1,3}\.\d{1,2})\s(\d{1,5}\.\d{1,2})/;
             
             // Extract invoice number and date from specific lines
             let invoiceNumber = '';
@@ -387,9 +387,9 @@
             truncatedLines.forEach(line => {
                 const match = line.match(produsPattern);
                 if (match) {
-                    const [_, nrCrt, bucati, nume, pretUnitar, pretTotal] = match;
+                    const [_, nrCrt, cod, bucati, nume, pretUnitar, pretTotal] = match;
                     products.push({
-                        nume: nume.trim(),
+                        nume: cod.replace("-", "").trim() + " " + nume.trim(),
                         bucati: bucati,
                         pretUnitar: pretUnitar,
                         pretTotal: pretTotal
@@ -471,7 +471,7 @@
             console.log("Normalized text: " + combinedText);
 
             // For Outlet, we use a different pattern that matches their invoice format
-            const produsPattern = /(\(\d{12,14}\).*?)(pcs|buc)\s(\d+)\s(\d+\.\d+)\s/g;
+            const produsPattern = /\d{1,3} (\(.*?)(pcs|buc)\s(\d+)\s(\d+\.\d+)\s/g;
             const matches = combinedText.matchAll(produsPattern);
             
             for (const match of matches) {

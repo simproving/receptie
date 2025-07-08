@@ -31,6 +31,7 @@
             <div>
                 <button onclick="parseAndUpdateTable()" class="btn btn-primary">Procesează</button>
                 <button id="sendToInventory" onclick="sendToInventory()" class="btn btn-success ms-2" style="display: none;">Trimite la inventar</button>
+                <button id="downloadCSV" onclick="downloadTableAsCSV()" class="btn btn-secondary ms-2">Descarcă CSV</button>
             </div>
             <span id="processingStatus" class="text-muted" style="font-size: 12px;"></span>
         </div>
@@ -687,6 +688,56 @@
             // Initial row numbering
             renumberRows();
         });
+
+        // CSV download function
+        function downloadTableAsCSV() {
+            const table = document.querySelector('.main-table');
+            const rows = table.querySelectorAll('tbody tr');
+            let csv = [];
+
+            // Get header row
+            const headerCells = table.querySelectorAll('thead th');
+            let headerRow = [];
+            headerCells.forEach(th => {
+                headerRow.push('"' + th.innerText.replace(/\n/g, ' ').replace(/"/g, '""') + '"');
+            });
+            csv.push(headerRow.join(','));
+
+            // Get data rows (skip #emptyRow and .total-row)
+            rows.forEach(row => {
+                if (row.id === 'emptyRow' || row.classList.contains('total-row')) return;
+                let rowData = [];
+                for (let i = 0; i < row.cells.length; i++) {
+                    let cell = row.cells[i];
+                    let value = '';
+                    // For input or textarea, get value
+                    const input = cell.querySelector('input, textarea');
+                    if (input) {
+                        value = input.value;
+                    } else {
+                        value = cell.innerText;
+                    }
+                    // Escape quotes
+                    value = '"' + value.replace(/"/g, '""') + '"';
+                    rowData.push(value);
+                }
+                csv.push(rowData.join(','));
+            });
+
+            // Create and trigger download
+            const csvContent = csv.join('\n');
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            // Use document title for filename if possible
+            let filename = document.title ? document.title + '.csv' : 'tabel.csv';
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
     </script>
     
     <!-- Home button will be added by the homeButton.js script -->

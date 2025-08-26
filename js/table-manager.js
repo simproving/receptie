@@ -174,6 +174,7 @@ const TableManager = {
         const isAvon = document.getElementById('avonSupplier').checked;
         const isOutlet = document.getElementById('outletSupplier').checked;
         const isArgint = document.getElementById('argintSupplier').checked;
+        const isCosmetic = document.getElementById('cosmeticSupplier').checked;
         
         if (isAvon) {
             // Set the values for Avon
@@ -210,6 +211,10 @@ const TableManager = {
             newRow.querySelector('td:nth-child(5) input').value = bucati;
             newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
             newRow.querySelector('td:nth-child(11) input').value = pretTotal;
+        } else if (isCosmetic) {
+            // Set the values for Cosmetic (same as Avon - direct pricing)
+            newRow.querySelector('td:nth-child(2) input, td:nth-child(2) textarea').value = nume;
+            newRow.querySelector('td:nth-child(5) input').value = bucati;
         }
         
         // Insert before the empty row

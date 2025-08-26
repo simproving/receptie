@@ -30,6 +30,8 @@ function initializeSupplierRadios() {
                 supplierField.value = '';
             } else if (this.value === 'Argint') {
                 supplierField.value = '';
+            } else if (this.value === 'Cosmetic') {
+                supplierField.value = '';
             }
         });
     });

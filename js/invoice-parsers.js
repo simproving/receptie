@@ -25,7 +25,7 @@ const InvoiceParsers = {
         // Use setTimeout to allow the UI to update before heavy processing
         setTimeout(() => {
             try {
-                var lines = text.split('\n').filter(line => line.trim() !== '');
+                var lines = text.split('\n');
                 
                 // Clear existing rows except the empty row and total row
                 const rows = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)');
@@ -35,17 +35,23 @@ const InvoiceParsers = {
                 const isAvon = document.getElementById('avonSupplier').checked;
                 const isOutlet = document.getElementById('outletSupplier').checked;
                 const isArgint = document.getElementById('argintSupplier').checked;
+                const isCosmetic = document.getElementById('cosmeticSupplier').checked;
                 
                 let supplierName = '';
                 if (isAvon) {
                     supplierName = 'Avon';
-                    this.parseAvonInvoice(lines);
+                    this.parseAvonInvoice(lines.filter(line => line.trim() !== ''));
                 } else if (isOutlet) {
                     supplierName = 'Outlet';
-                    this.parseOutletInvoice(lines);
+                    this.parseOutletInvoice(lines.filter(line => line.trim() !== ''));
                 } else if (isArgint) {
                     supplierName = 'Argint';
-                    this.parseArgintInvoice(lines);
+                    this.parseArgintInvoice(lines.filter(line => line.trim() !== ''));
+                } else if (isCosmetic) {
+                    supplierName = 'Cosmetic';
+                    this.parseCosmeticInvoice(lines.map(line => 
+                        line.trim().includes('Adăugat cu cost') ? '' : line
+                    ));
                 }
                 
                 // Renumber rows and recalculate totals
@@ -270,6 +276,133 @@ const InvoiceParsers = {
         });
         
         console.log(`Found ${productCount} products in Argint invoice`);
+    },
+
+    parseCosmeticInvoice: function(lines) {
+        console.log(`Processing Cosmetic invoice with ${lines.length} lines`);
+
+        // Extract invoice number and date from specific lines
+        let invoiceNumber = '';
+        let invoiceDate = '';
+
+        // Look for invoice number and date in the lines
+        // Pattern: "Numărul comenzii: 4448513014" and "Data comenzii: 19.08.2025"
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+
+            // Look for order number pattern
+            const orderNumberMatch = line.match(/Numărul comenzii:\s*(\d+)/i);
+            if (orderNumberMatch && orderNumberMatch[1] && !invoiceNumber) {
+                invoiceNumber = orderNumberMatch[1];
+                console.log(`Found invoice number: ${invoiceNumber}`);
+            }
+
+            // Look for order date pattern
+            const orderDateMatch = line.match(/Data comenzii:\s*(\d{1,2}\.\d{1,2}\.\d{2,4})/i);
+            if (orderDateMatch && orderDateMatch[1] && !invoiceDate) {
+                invoiceDate = orderDateMatch[1];
+                console.log(`Found invoice date: ${invoiceDate}`);
+            }
+        }
+
+        // Update invoice fields if found
+        console.log(`Final invoice number: "${invoiceNumber}", date: "${invoiceDate}"`);
+        if (invoiceNumber) {
+            const invoiceNumberField = document.querySelector('.document-info tr:last-child td:nth-child(2) input');
+            if (invoiceNumberField) {
+                invoiceNumberField.value = invoiceNumber;
+                console.log(`Set invoice number field to: ${invoiceNumber}`);
+            } else {
+                console.log('Invoice number field not found');
+            }
+        }
+        if (invoiceDate) {
+            const invoiceDateField = document.querySelector('.document-info tr:last-child td:nth-child(3) input');
+            if (invoiceDateField) {
+                invoiceDateField.value = invoiceDate;
+                console.log(`Set invoice date field to: ${invoiceDate}`);
+            } else {
+                console.log('Invoice date field not found');
+            }
+        }
+
+        // Keep track of how many products we found
+        let productCount = 0;
+
+        // Array to store all products before processing
+        const products = [];
+
+        // Process cosmetic invoice format
+        // Products are separated by empty lines, each product block contains:
+        // - Product name (appears twice, potentially multi-line)
+        // - 5-digit code
+        // - BP value, LEI value, quantity line, etc.
+
+        let i = 0;
+        while (i < lines.length) {
+            // Skip empty lines and find the start of a product block
+            if (lines[i].trim() === '') {
+                i++;
+                continue;
+            }
+
+            // Skip header lines and registration fees
+            if (lines[i].trim().startsWith('Produsele') || 
+                lines[i].trim().includes('Taxă de înregistrare')) {
+                i++;
+                continue;
+            }
+
+            // Collect all lines until the next empty line (one product block)
+            let productBlock = [];
+
+            while (i < lines.length && lines[i].trim() !== '') {
+                productBlock.push(lines[i]);
+                i++;
+            }
+
+            // Process the product block if it's not empty
+            if (productBlock.length > 0) {
+                // Join all lines in the block to process as one string
+                const blockText = productBlock.join(' ');
+
+                // Find the 5-digit code that signals the end of the product name
+                const codeMatch = blockText.match(/(\d{5})/);
+                if (codeMatch) {
+                    const codeIndex = blockText.indexOf(codeMatch[1]);
+
+                    // Extract text from start until the 5-digit code
+                    const textUntilCode = blockText.substring(0, codeIndex).trim();
+
+                    // Since the product name appears twice, take the first half
+                    const words = textUntilCode.split(/\s+/);
+                    const halfLength = Math.ceil(words.length / 2);
+                    const productName = words.slice(0, halfLength).join(' ').trim();
+
+                    // Extract quantity using regex
+                    const quantityMatch = blockText.match(/Cantitate:\s*(\d+)/);
+                    const quantity = quantityMatch ? quantityMatch[1] : '';
+
+                    // Only add product if we found a valid product name and quantity (skip if quantity is 0)
+                    if (productName && quantity && quantity !== '0') {
+                        products.push({
+                            nume: productName,
+                            bucati: quantity,
+                            pretUnitar: '', // leave empty as requested
+                            pretTotal: ''   // leave empty as requested
+                        });
+                        productCount++;
+                    }
+                }
+            }
+        }
+
+        // Second pass: create rows
+        products.forEach(product => {
+            TableManager.addProductRow(product.nume, product.bucati, product.pretUnitar, product.pretTotal);
+        });
+
+        console.log(`Found ${productCount} products in Cosmetic invoice`);
     }
 };
 

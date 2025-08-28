@@ -23,7 +23,7 @@ const InvoiceParsers = {
         document.querySelector('.document-info tr:last-child td:nth-child(3) input').value = '';
         
         // Use setTimeout to allow the UI to update before heavy processing
-        setTimeout(() => {
+        setTimeout(async () => {
             try {
                 var lines = text.split('\n');
                 
@@ -67,7 +67,21 @@ const InvoiceParsers = {
                 document.title = title;
                 
                 const productCount = document.querySelectorAll('#itemsTable tr:not(.total-row):not(#emptyRow)').length;
-                statusElement.textContent = `Procesare completă: ${productCount} produse importate.`;
+                
+                // Save invoice data to IndexedDB
+                try {
+                    const saveResult = await saveInvoiceToDatabase(supplierName);
+                    
+                    if (saveResult.action === 'updated') {
+                        statusElement.textContent = `Procesare completă: ${productCount} produse importate. Factura actualizată în baza de date.`;
+                    } else if (saveResult.action === 'saved') {
+                        statusElement.textContent = `Procesare completă: ${productCount} produse importate. Salvat în baza de date.`;
+                    }
+                } catch (dbError) {
+                    console.error('Database save error:', dbError);
+                    statusElement.textContent = `Procesare completă: ${productCount} produse importate. Eroare la salvarea în baza de date.`;
+                }
+                
                 statusElement.className = 'text-success';
             } catch (error) {
                 console.error('Error parsing input:', error);

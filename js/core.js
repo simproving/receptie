@@ -40,6 +40,8 @@ function initializeSupplierRadios() {
                 supplierField.value = '';
             } else if (this.value === 'Cosmetic') {
                 supplierField.value = '';
+            } else if (this.value === 'Table') {
+                supplierField.value = '';
             }
             
             // Don't auto-save immediately after supplier change since table is cleared
@@ -148,40 +150,44 @@ async function saveInvoiceToDatabase(supplierName) {
         // Get current invoice data
         const invoiceNumber = document.querySelector('.document-info tr:last-child td:nth-child(2) input').value;
         const invoiceDate = document.querySelector('.document-info tr:last-child td:nth-child(3) input').value;
-        
-        // Check if invoice with same number already exists
-        if (invoiceNumber && invoiceNumber.trim()) {
-            const existingInvoice = await DBManager.checkInvoiceExists(invoiceNumber.trim(), supplierName);
-            
-            if (existingInvoice) {
-                // Automatically update existing invoice
-                const updatedData = {
-                    date: new Date().toISOString().split('T')[0],
-                    invoiceDate: invoiceDate,
-                    products: await getCurrentProducts(),
-                    totalQuantity: parseFloat(document.getElementById('totalCantitate').value || '0'),
-                    totalValue: parseFloat(document.getElementById('totalValoare').value || '0')
-                };
-                
-                const result = await DBManager.updateInvoice(existingInvoice.id, updatedData);
-                console.log('Invoice updated in database with ID:', result);
-                return { action: 'updated', id: result };
-            }
-        }
-        
-        // Get products from table
         const products = await getCurrentProducts();
+        const totalQuantity = parseFloat(document.getElementById('totalCantitate').value || '0');
+        const totalValue = parseFloat(document.getElementById('totalValoare').value || '0');
+        const numberOfRows = products.length;
         
-        // Get totals
-        const totalQuantity = document.getElementById('totalCantitate').value || '0';
-        const totalValue = document.getElementById('totalValoare').value || '0';
+        // Check for duplicates using multiple criteria
+        const duplicateInvoice = await checkForDuplicateInvoice(
+            supplierName, 
+            invoiceNumber, 
+            invoiceDate, 
+            numberOfRows, 
+            totalQuantity, 
+            totalValue
+        );
+        
+        if (duplicateInvoice) {
+            console.log('Duplicate invoice detected, updating existing invoice with ID:', duplicateInvoice.id);
+            
+            // Automatically update existing invoice
+            const updatedData = {
+                date: new Date().toISOString().split('T')[0],
+                invoiceDate: invoiceDate,
+                products: products,
+                totalQuantity: totalQuantity,
+                totalValue: totalValue
+            };
+            
+            const result = await DBManager.updateInvoice(duplicateInvoice.id, updatedData);
+            console.log('Invoice updated in database with ID:', result);
+            return { action: 'updated', id: result };
+        }
         
         const invoiceData = {
             invoiceNumber,
             invoiceDate,
             products,
-            totalQuantity: parseFloat(totalQuantity) || 0,
-            totalValue: parseFloat(totalValue) || 0
+            totalQuantity: totalQuantity,
+            totalValue: totalValue
         };
         
         // Save new invoice to IndexedDB
@@ -192,6 +198,69 @@ async function saveInvoiceToDatabase(supplierName) {
     } catch (error) {
         console.error('Error saving invoice to database:', error);
         throw error;
+    }
+}
+
+// Enhanced duplicate detection function
+async function checkForDuplicateInvoice(supplierName, invoiceNumber, invoiceDate, numberOfRows, totalQuantity, totalValue) {
+    try {
+        // Get all invoices for this supplier
+        const existingInvoices = await DBManager.getInvoicesBySupplier(supplierName);
+        
+        // Check for exact duplicates using multiple criteria
+        for (const invoice of existingInvoices) {
+            let matchCount = 0;
+            let totalCriteria = 0;
+            
+            // Check invoice number (if both have values)
+            if (invoiceNumber && invoiceNumber.trim() && invoice.invoiceNumber && invoice.invoiceNumber.trim()) {
+                totalCriteria++;
+                if (invoiceNumber.trim() === invoice.invoiceNumber.trim()) {
+                    matchCount++;
+                }
+            }
+            
+            // Check invoice date (if both have values)
+            if (invoiceDate && invoiceDate.trim() && invoice.invoiceDate && invoice.invoiceDate.trim()) {
+                totalCriteria++;
+                if (invoiceDate.trim() === invoice.invoiceDate.trim()) {
+                    matchCount++;
+                }
+            }
+            
+            // Check number of rows
+            totalCriteria++;
+            if (numberOfRows === (invoice.products ? invoice.products.length : 0)) {
+                matchCount++;
+            }
+            
+            // Check total quantity (with small tolerance for floating point differences)
+            totalCriteria++;
+            if (Math.abs(totalQuantity - (invoice.totalQuantity || 0)) < 0.01) {
+                matchCount++;
+            }
+            
+            // Check total value (with small tolerance for floating point differences)
+            totalCriteria++;
+            if (Math.abs(totalValue - (invoice.totalValue || 0)) < 0.01) {
+                matchCount++;
+            }
+            
+            // Consider it a duplicate if most criteria match
+            // For invoices with number and date: need at least 4/5 matches
+            // For invoices without number or date: need at least 3/3 matches for the remaining criteria
+            const requiredMatches = totalCriteria >= 4 ? Math.ceil(totalCriteria * 0.8) : totalCriteria;
+            
+            if (matchCount >= requiredMatches && matchCount >= 3) {
+                console.log(`Duplicate detected: ${matchCount}/${totalCriteria} criteria matched for invoice ID ${invoice.id}`);
+                return invoice;
+            }
+        }
+        
+        return null; // No duplicate found
+    } catch (error) {
+        console.error('Error checking for duplicate invoice:', error);
+        return null; // On error, assume no duplicate to avoid blocking saves
     }
 }
 

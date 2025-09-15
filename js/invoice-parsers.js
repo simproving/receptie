@@ -36,6 +36,7 @@ const InvoiceParsers = {
                 const isOutlet = document.getElementById('outletSupplier').checked;
                 const isArgint = document.getElementById('argintSupplier').checked;
                 const isCosmetic = document.getElementById('cosmeticSupplier').checked;
+                const isTable = document.getElementById('tableSupplier').checked;
                 
                 let supplierName = '';
                 if (isAvon) {
@@ -52,6 +53,9 @@ const InvoiceParsers = {
                     this.parseCosmeticInvoice(lines.map(line => 
                         line.trim().includes('Adăugat cu cost') ? '' : line
                     ));
+                } else if (isTable) {
+                    supplierName = 'Table';
+                    this.parseTableInvoice(lines.filter(line => line.trim() !== ''));
                 }
                 
                 // Renumber rows and recalculate totals
@@ -73,7 +77,7 @@ const InvoiceParsers = {
                     const saveResult = await saveInvoiceToDatabase(supplierName);
                     
                     if (saveResult.action === 'updated') {
-                        statusElement.textContent = `Procesare completă: ${productCount} produse importate. Factura actualizată în baza de date.`;
+                        statusElement.textContent = `Procesare completă: ${productCount} produse importate. Factura duplicată detectată și actualizată în baza de date.`;
                     } else if (saveResult.action === 'saved') {
                         statusElement.textContent = `Procesare completă: ${productCount} produse importate. Salvat în baza de date.`;
                     }
@@ -417,6 +421,75 @@ const InvoiceParsers = {
         });
 
         console.log(`Found ${productCount} products in Cosmetic invoice`);
+    },
+
+    parseTableInvoice: function(lines) {
+        console.log(`Processing Table invoice with ${lines.length} lines`);
+        
+        // For table format, we don't extract invoice number and date from the data
+        // User can manually enter them if needed
+        
+        let productCount = 0;
+        const products = [];
+        
+        // Process each line as a space-separated row
+        lines.forEach(line => {
+            const trimmedLine = line.trim();
+            if (!trimmedLine) return;
+            
+            // Split by spaces but handle multiple spaces
+            const parts = trimmedLine.split(/\s+/);
+            
+            // Expected format: ProductName Size Quantity Supplier [prices...]
+            // We need at least 4 parts for a valid row (name, size, quantity, supplier)
+            if (parts.length >= 4) {
+                // Find where the product name ends by looking for size patterns
+                // Size is typically numeric (38, 40, 42) or letter (S, M, L, XL)
+                let sizeIndex = -1;
+                
+                for (let i = 0; i < parts.length - 3; i++) {
+                    const part = parts[i];
+                    // Check if this looks like a size (number or common size letters)
+                    if (/^\d+$/.test(part) || /^(XS|S|M|L|XL|XXL)$/i.test(part)) {
+                        sizeIndex = i;
+                        break;
+                    }
+                }
+                
+                // If we couldn't find a clear size pattern, assume first part is name and second is size
+                if (sizeIndex === -1) {
+                    sizeIndex = 1;
+                }
+                
+                // Extract product name (everything up to size)
+                const productName = parts.slice(0, sizeIndex).join(' ');
+                
+                // Extract other fields
+                const size = parts[sizeIndex] || '';
+                const quantity = parts[sizeIndex + 1] || '';
+                const supplier = parts[sizeIndex + 2] || '';
+                
+                // Create full product name with size and supplier
+                const fullProductName = `${productName} ${size} - ${supplier}`;
+                
+                if (productName && quantity) {
+                    products.push({
+                        nume: fullProductName,
+                        bucati: quantity,
+                        pretUnitar: '', // Leave empty for manual input
+                        pretTotal: ''   // Leave empty for manual input
+                    });
+                    productCount++;
+                }
+            }
+        });
+        
+        // Create rows for all products
+        products.forEach(product => {
+            TableManager.addProductRow(product.nume, product.bucati, product.pretUnitar, product.pretTotal);
+        });
+        
+        console.log(`Found ${productCount} products in Table format`);
     }
 };
 

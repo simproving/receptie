@@ -233,7 +233,15 @@ const InvoiceParsers = {
                                         // Add the quantity to existing product
                                         const oldQuantity = parseInt(existingProduct.bucati) || 0;
                                         const newQuantity = parseInt(update.bucati) || 0;
-                                        existingProduct.bucati = (oldQuantity + newQuantity).toString();
+                                        const finalQuantity = oldQuantity + newQuantity;
+                                        existingProduct.bucati = finalQuantity.toString();
+                                        
+                                        // Recalculate total price if unit price exists
+                                        if (existingProduct.pretUnitar && existingProduct.pretUnitar !== '') {
+                                            const unitPrice = parseFloat(existingProduct.pretUnitar) || 0;
+                                            existingProduct.pretTotal = (finalQuantity * unitPrice).toFixed(2);
+                                        }
+                                        
                                         console.log(`Added quantity for ${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati}`);
                                         updateMessages.push(`${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati} bucăți`);
                                     } else {
@@ -315,7 +323,15 @@ const InvoiceParsers = {
                                 // Add the quantity to existing product
                                 const oldQuantity = parseInt(existingProduct.bucati) || 0;
                                 const newQuantity = parseInt(update.bucati) || 0;
-                                existingProduct.bucati = (oldQuantity + newQuantity).toString();
+                                const finalQuantity = oldQuantity + newQuantity;
+                                existingProduct.bucati = finalQuantity.toString();
+                                
+                                // Recalculate total price if unit price exists
+                                if (existingProduct.pretUnitar && existingProduct.pretUnitar !== '') {
+                                    const unitPrice = parseFloat(existingProduct.pretUnitar) || 0;
+                                    existingProduct.pretTotal = (finalQuantity * unitPrice).toFixed(2);
+                                }
+                                
                                 console.log(`Added quantity for ${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati}`);
                                 updateMessages.push(`${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati} bucăți`);
                             } else {
@@ -364,6 +380,9 @@ const InvoiceParsers = {
         products.forEach(product => {
             TableManager.addProductRow(product.nume, product.bucati, product.pretUnitar, product.pretTotal);
         });
+        
+        // Recalculate totals after all products are added and quantities updated
+        TableManager.recalculateTotals();
         
         console.log(`Found ${productCount} products in Avon invoice`);
     },

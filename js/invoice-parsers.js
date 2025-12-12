@@ -267,6 +267,85 @@ const InvoiceParsers = {
                         }
                     }
                 }
+                // Check for "Semnaturile" case - products between "Semnaturile" and "TAXA PROCESARE"
+                else if (line.includes('Semnaturile')) {
+                    console.log('Found Semnaturile line, looking for products until TAXA PROCESARE');
+                    
+                    const quantityUpdates = [];
+                    i++; // Move to the next line after "Semnaturile"
+                    
+                    while (i < truncatedLines.length) {
+                        const currentLine = truncatedLines[i];
+                        
+                        // Check if we hit "TAXA PROCESARE" or similar
+                        if (currentLine.includes('TAXA PROCESARE') || currentLine.includes('TAXA DE PROCESARE')) {
+                            console.log('Reached TAXA PROCESARE, ending product collection');
+                            break;
+                        }
+                        
+                        // Try to match product without price pattern
+                        const partialPattern = /^(\d{1,3})\s+(\d{4}-\d)\s+(-?\d{1,3})\s+(.+)/;
+                        const partialMatch = currentLine.match(partialPattern);
+                        
+                        if (partialMatch) {
+                            const [_, nrCrt, cod, bucati, nume] = partialMatch;
+                            quantityUpdates.push({
+                                cod: cod.replace("-", "").trim(),
+                                bucati: bucati,
+                                nume: nume.trim()
+                            });
+                            console.log(`Found quantity update from Semnaturile: ${cod} - ${bucati} units`);
+                        } else {
+                            // If line doesn't match product pattern, we might be done
+                            break;
+                        }
+                        
+                        i++;
+                    }
+                    
+                    // Process the updates
+                    if (quantityUpdates.length > 0) {
+                        const updateMessages = [];
+                        
+                        quantityUpdates.forEach(update => {
+                            // Look for existing product with this code
+                            const existingProduct = products.find(p => p.nume.startsWith(update.cod + ' '));
+                            
+                            if (existingProduct) {
+                                // Add the quantity to existing product
+                                const oldQuantity = parseInt(existingProduct.bucati) || 0;
+                                const newQuantity = parseInt(update.bucati) || 0;
+                                existingProduct.bucati = (oldQuantity + newQuantity).toString();
+                                console.log(`Added quantity for ${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati}`);
+                                updateMessages.push(`${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati} bucăți`);
+                            } else {
+                                // Add as new product without price
+                                products.push({
+                                    nume: update.cod + " " + update.nume,
+                                    bucati: update.bucati,
+                                    pretUnitar: '',
+                                    pretTotal: ''
+                                });
+                                productCount++;
+                                console.log(`Added new product without price: ${update.cod} ${update.nume}`);
+                                updateMessages.push(`${update.cod}: Produs nou adăugat cu ${update.bucati} bucăți (fără preț)`);
+                            }
+                        });
+                        
+                        // Show message box with all changes
+                        if (updateMessages.length > 0) {
+                            const messageDiv = document.getElementById('quantityUpdatesMessage');
+                            const contentDiv = document.getElementById('quantityUpdatesContent');
+                            const currentContent = contentDiv.innerHTML;
+                            const newContent = updateMessages.map(msg => `<div style="margin: 5px 0;">${msg}</div>`).join('');
+                            contentDiv.innerHTML = currentContent + (currentContent ? '<hr style="margin: 10px 0;">' : '') + '<strong>Actualizări din secțiunea Semnaturile:</strong><br>' + newContent;
+                            messageDiv.style.display = 'block';
+                        }
+                    }
+                    
+                    // Decrement i by 1 because the outer loop will increment it
+                    i--;
+                }
             }
         }
 

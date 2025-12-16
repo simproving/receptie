@@ -148,7 +148,11 @@ const InvoiceParsers = {
         // Array to store all products before processing
         const products = [];
         
-        // First pass: collect all products
+        // Track which sections we've processed to avoid duplicates
+        let processedSeparatorSection = false;
+        let processedSemnaturile = false;
+        
+        // First pass: collect all main products (with full price info)
         for (let i = 0; i < truncatedLines.length; i++) {
             const line = truncatedLines[i];
             const match = line.match(produsPattern);
@@ -162,208 +166,134 @@ const InvoiceParsers = {
                     pretTotal: pretTotal
                 });
                 productCount++;
-            } else {
-                // Check if this is a separator line
-                if (separatorPattern.test(line)) {
-                    // Check if the immediate next line exists and contains a product code
-                    if (i + 1 < truncatedLines.length) {
-                        const nextLine = truncatedLines[i + 1];
-                        const hasProductCode = productCodePattern.test(nextLine);
-                        
-                        if (hasProductCode) {
-                            // Check if the next line is missing price (doesn't match full pattern)
-                            const fullMatch = nextLine.match(produsPattern);
-                            
-                            if (!fullMatch) {
-                                console.log('Found separator line followed by products without prices');
-                                
-                                // Collect products after separator (code and quantity updates)
-                                const stopText = 'Produsul nu este disponibil';
-                                const quantityUpdates = []; // Store code and quantity pairs
-                                i++; // Move to the first product line after separator
-                                
-                                while (i < truncatedLines.length) {
-                                    const currentLine = truncatedLines[i];
-                                    
-                                    // Check if we hit the stop text - skip this line entirely
-                                    if (currentLine.includes(stopText)) {
-                                        console.log('Reached stop text, ending product collection');
-                                        break;
-                                    }
-                                    
-                                    // Check if the next line contains the stop text
-                                    const nextLineHasStopText = (i + 1 < truncatedLines.length) && 
-                                                                truncatedLines[i + 1].includes(stopText);
-                                    
-                                    // Try to match product without price pattern
-                                    const partialPattern = /^(\d{1,3})\s+(\d{4}-\d)\s+(-?\d{1,3})\s+(.+)/;
-                                    const partialMatch = currentLine.match(partialPattern);
-                                    
-                                    if (partialMatch) {
-                                        const [_, nrCrt, cod, bucati, nume] = partialMatch;
-                                        
-                                        // Skip this product if the next line contains the stop text
-                                        if (nextLineHasStopText) {
-                                            console.log(`Skipping product ${cod} because next line contains stop text`);
-                                            break;
-                                        }
-                                        
-                                        quantityUpdates.push({
-                                            cod: cod.replace("-", "").trim(),
-                                            bucati: bucati,
-                                            nume: nume.trim()
-                                        });
-                                        console.log(`Found quantity update: ${cod} - ${bucati} units`);
-                                    } else {
-                                        // If line doesn't match product pattern, we might be done
-                                        break;
-                                    }
-                                    
-                                    i++;
-                                }
-                                
-                                // Now update existing products or add new ones
-                                const updateMessages = [];
-                                
-                                quantityUpdates.forEach(update => {
-                                    // Look for existing product with this code
-                                    const existingProduct = products.find(p => p.nume.startsWith(update.cod + ' '));
-                                    
-                                    if (existingProduct) {
-                                        // Add the quantity to existing product
-                                        const oldQuantity = parseInt(existingProduct.bucati) || 0;
-                                        const newQuantity = parseInt(update.bucati) || 0;
-                                        const finalQuantity = oldQuantity + newQuantity;
-                                        existingProduct.bucati = finalQuantity.toString();
-                                        
-                                        // Recalculate total price if unit price exists
-                                        if (existingProduct.pretUnitar && existingProduct.pretUnitar !== '') {
-                                            const unitPrice = parseFloat(existingProduct.pretUnitar) || 0;
-                                            existingProduct.pretTotal = (finalQuantity * unitPrice).toFixed(2);
-                                        }
-                                        
-                                        console.log(`Added quantity for ${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati}`);
-                                        updateMessages.push(`${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati} bucăți`);
-                                    } else {
-                                        // Add as new product without price
-                                        products.push({
-                                            nume: update.cod + " " + update.nume,
-                                            bucati: update.bucati,
-                                            pretUnitar: '',
-                                            pretTotal: ''
-                                        });
-                                        productCount++;
-                                        console.log(`Added new product without price: ${update.cod} ${update.nume}`);
-                                        updateMessages.push(`${update.cod}: Produs nou adăugat cu ${update.bucati} bucăți (fără preț)`);
-                                    }
-                                });
-                                
-                                // Show message box with all changes
-                                if (updateMessages.length > 0) {
-                                    const messageDiv = document.getElementById('quantityUpdatesMessage');
-                                    const contentDiv = document.getElementById('quantityUpdatesContent');
-                                    contentDiv.innerHTML = updateMessages.map(msg => `<div style="margin: 5px 0;">${msg}</div>`).join('');
-                                    messageDiv.style.display = 'block';
-                                } else {
-                                    // Hide the message div if no updates
-                                    document.getElementById('quantityUpdatesMessage').style.display = 'none';
-                                }
-                                
-                                // Decrement i by 1 because the outer loop will increment it
-                                i--;
-                            }
-                        }
+            }
+        }
+        
+        // Second pass: look for additional quantity updates
+        const allUpdateMessages = [];
+        const processedProductLines = new Set(); // Track which lines we've already processed
+        
+        for (let i = 0; i < truncatedLines.length; i++) {
+            const line = truncatedLines[i];
+            
+            // Case 1: Check for separator line (dashed line) followed by products without prices
+            if (separatorPattern.test(line) && !processedSeparatorSection) {
+                console.log('Found separator line, checking for products without prices');
+                
+                // Look for products without prices in the next few lines
+                let hasProductsAfterSeparator = false;
+                let nextProductLine = -1;
+                
+                for (let j = i + 1; j < truncatedLines.length && j < i + 10; j++) {
+                    const checkLine = truncatedLines[j];
+                    
+                    // Stop if we hit TAXA PROCESARE
+                    if (checkLine.includes('TAXA PROCESARE')) {
+                        break;
+                    }
+                    
+                    // Skip lines that are clearly not products (like "PRODUSE CU REDUCERE")
+                    if (checkLine.includes('PRODUSE CU REDUCERE') || 
+                        checkLine.includes('Subtotal') || 
+                        checkLine.includes('Total facturat')) {
+                        continue;
+                    }
+                    
+                    // Check if this line has a product code but no full product pattern (no prices)
+                    // AND we haven't processed this line range before
+                    // Use a more specific pattern to detect products without prices
+                    const productWithoutPricePattern = /^(\d{1,3})\s+(\d{4}-\d)\s+(-?\d{1,3})\s+(.+)$/;
+                    const hasProductWithoutPrice = productWithoutPricePattern.test(checkLine) && !produsPattern.test(checkLine);
+                    
+                    if (hasProductWithoutPrice && !processedProductLines.has(j)) {
+                        hasProductsAfterSeparator = true;
+                        nextProductLine = j;
+                        break;
                     }
                 }
-                // Check for "Semnaturile" case - products between "Semnaturile" and "TAXA PROCESARE"
-                else if (line.includes('Semnaturile')) {
-                    console.log('Found Semnaturile line, looking for products until TAXA PROCESARE');
+                
+                if (hasProductsAfterSeparator) {
+                    console.log(`Found products without prices after separator starting at line ${nextProductLine}`);
+                    const quantityUpdates = this.collectProductsWithoutPrices(truncatedLines, nextProductLine, 'TAXA PROCESARE');
                     
-                    const quantityUpdates = [];
-                    i++; // Move to the next line after "Semnaturile"
-                    
-                    while (i < truncatedLines.length) {
-                        const currentLine = truncatedLines[i];
-                        
-                        // Check if we hit "TAXA PROCESARE" or similar
-                        if (currentLine.includes('TAXA PROCESARE') || currentLine.includes('TAXA DE PROCESARE')) {
-                            console.log('Reached TAXA PROCESARE, ending product collection');
-                            break;
-                        }
-                        
-                        // Try to match product without price pattern
-                        const partialPattern = /^(\d{1,3})\s+(\d{4}-\d)\s+(-?\d{1,3})\s+(.+)/;
-                        const partialMatch = currentLine.match(partialPattern);
-                        
-                        if (partialMatch) {
-                            const [_, nrCrt, cod, bucati, nume] = partialMatch;
-                            quantityUpdates.push({
-                                cod: cod.replace("-", "").trim(),
-                                bucati: bucati,
-                                nume: nume.trim()
-                            });
-                            console.log(`Found quantity update from Semnaturile: ${cod} - ${bucati} units`);
-                        } else {
-                            // If line doesn't match product pattern, we might be done
-                            break;
-                        }
-                        
-                        i++;
+                    // Mark these lines as processed
+                    for (let k = nextProductLine; k < nextProductLine + quantityUpdates.length; k++) {
+                        processedProductLines.add(k);
                     }
                     
-                    // Process the updates
-                    if (quantityUpdates.length > 0) {
-                        const updateMessages = [];
-                        
-                        quantityUpdates.forEach(update => {
-                            // Look for existing product with this code
-                            const existingProduct = products.find(p => p.nume.startsWith(update.cod + ' '));
-                            
-                            if (existingProduct) {
-                                // Add the quantity to existing product
-                                const oldQuantity = parseInt(existingProduct.bucati) || 0;
-                                const newQuantity = parseInt(update.bucati) || 0;
-                                const finalQuantity = oldQuantity + newQuantity;
-                                existingProduct.bucati = finalQuantity.toString();
-                                
-                                // Recalculate total price if unit price exists
-                                if (existingProduct.pretUnitar && existingProduct.pretUnitar !== '') {
-                                    const unitPrice = parseFloat(existingProduct.pretUnitar) || 0;
-                                    existingProduct.pretTotal = (finalQuantity * unitPrice).toFixed(2);
-                                }
-                                
-                                console.log(`Added quantity for ${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati}`);
-                                updateMessages.push(`${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati} bucăți`);
-                            } else {
-                                // Add as new product without price
-                                products.push({
-                                    nume: update.cod + " " + update.nume,
-                                    bucati: update.bucati,
-                                    pretUnitar: '',
-                                    pretTotal: ''
-                                });
-                                productCount++;
-                                console.log(`Added new product without price: ${update.cod} ${update.nume}`);
-                                updateMessages.push(`${update.cod}: Produs nou adăugat cu ${update.bucati} bucăți (fără preț)`);
-                            }
+                    const updateMessages = this.processQuantityUpdates(quantityUpdates, products);
+                    
+                    if (updateMessages.length > 0) {
+                        allUpdateMessages.push({
+                            section: 'Produse după linia separatoare',
+                            messages: updateMessages
                         });
-                        
-                        // Show message box with all changes
-                        if (updateMessages.length > 0) {
-                            const messageDiv = document.getElementById('quantityUpdatesMessage');
-                            const contentDiv = document.getElementById('quantityUpdatesContent');
-                            const currentContent = contentDiv.innerHTML;
-                            const newContent = updateMessages.map(msg => `<div style="margin: 5px 0;">${msg}</div>`).join('');
-                            contentDiv.innerHTML = currentContent + (currentContent ? '<hr style="margin: 10px 0;">' : '') + '<strong>Actualizări din secțiunea Semnaturile:</strong><br>' + newContent;
-                            messageDiv.style.display = 'block';
-                        }
                     }
                     
-                    // Decrement i by 1 because the outer loop will increment it
-                    i--;
+                    processedSeparatorSection = true;
+                    productCount += quantityUpdates.filter(u => !products.find(p => p.nume.startsWith(u.cod + ' '))).length;
+                } else {
+                    console.log('Separator line found but no products without prices after it, skipping');
+                }
+            }
+            
+            // Case 2: Check for "Semnaturile" case - products between "Semnaturile" and "TAXA PROCESARE"
+            else if (line.includes('Semnaturile') && !processedSemnaturile) {
+                console.log('Found Semnaturile line, looking for products until TAXA PROCESARE');
+                
+                // Look ahead to see if there are actually products without prices (not just TAXA PROCESARE)
+                let hasProductsAfterSemnaturile = false;
+                let nextProductLine = -1;
+                
+                for (let j = i + 1; j < truncatedLines.length && j < i + 10; j++) {
+                    const checkLine = truncatedLines[j];
+                    
+                    // Stop if we hit TAXA PROCESARE
+                    if (checkLine.includes('TAXA PROCESARE')) {
+                        break;
+                    }
+                    
+                    // Check if this line has a product code but no full product pattern (no prices)
+                    // AND we haven't processed this line range before
+                    // Use a more specific pattern to detect products without prices
+                    const productWithoutPricePattern = /^(\d{1,3})\s+(\d{4}-\d)\s+(-?\d{1,3})\s+(.+)$/;
+                    const hasProductWithoutPrice = productWithoutPricePattern.test(checkLine) && !produsPattern.test(checkLine);
+                    
+                    if (hasProductWithoutPrice && !processedProductLines.has(j)) {
+                        hasProductsAfterSemnaturile = true;
+                        nextProductLine = j;
+                        break;
+                    }
+                }
+                
+                if (hasProductsAfterSemnaturile) {
+                    console.log(`Found products without prices after Semnaturile starting at line ${nextProductLine}`);
+                    const quantityUpdates = this.collectProductsWithoutPrices(truncatedLines, nextProductLine, 'TAXA PROCESARE');
+                    
+                    // Mark these lines as processed
+                    for (let k = nextProductLine; k < nextProductLine + quantityUpdates.length; k++) {
+                        processedProductLines.add(k);
+                    }
+                    
+                    const updateMessages = this.processQuantityUpdates(quantityUpdates, products);
+                    
+                    if (updateMessages.length > 0) {
+                        allUpdateMessages.push({
+                            section: 'Produse după Semnaturile',
+                            messages: updateMessages
+                        });
+                    }
+                    
+                    processedSemnaturile = true;
+                    productCount += quantityUpdates.filter(u => !products.find(p => p.nume.startsWith(u.cod + ' '))).length;
+                } else {
+                    console.log('Semnaturile found but no products without prices after it, skipping');
                 }
             }
         }
+        
+        // Display all update messages
+        this.displayUpdateMessages(allUpdateMessages);
 
         // Store products temporarily
         currentAvonProducts = {
@@ -376,7 +306,7 @@ const InvoiceParsers = {
         // Show the "Trimite la inventar" button
         document.getElementById('sendToInventory').style.display = 'inline-block';
         
-        // Second pass: create rows
+        // Third pass: create rows
         products.forEach(product => {
             TableManager.addProductRow(product.nume, product.bucati, product.pretUnitar, product.pretTotal);
         });
@@ -385,6 +315,122 @@ const InvoiceParsers = {
         TableManager.recalculateTotals();
         
         console.log(`Found ${productCount} products in Avon invoice`);
+    },
+    
+    // Helper function to collect products without prices until a stop condition
+    collectProductsWithoutPrices: function(lines, startIndex, stopText) {
+        const quantityUpdates = [];
+        let i = startIndex;
+        
+        while (i < lines.length) {
+            const currentLine = lines[i];
+            
+            // Check if we hit the stop text
+            if (currentLine.includes(stopText)) {
+                console.log(`Reached ${stopText}, ending product collection`);
+                break;
+            }
+            
+            // Check if we hit "Produsul nu este disponibil" - skip this line entirely
+            if (currentLine.includes('Produsul nu este disponibil')) {
+                console.log('Reached "Produsul nu este disponibil", ending product collection');
+                break;
+            }
+            
+            // Check if the next line contains the stop text
+            const nextLineHasStopText = (i + 1 < lines.length) && 
+                                        lines[i + 1].includes('Produsul nu este disponibil');
+            
+            // Try to match product without price pattern
+            const partialPattern = /^(\d{1,3})\s+(\d{4}-\d)\s+(-?\d{1,3})\s+(.+)/;
+            const partialMatch = currentLine.match(partialPattern);
+            
+            if (partialMatch) {
+                const [_, nrCrt, cod, bucati, nume] = partialMatch;
+                
+                // Skip this product if the next line contains the stop text
+                if (nextLineHasStopText) {
+                    console.log(`Skipping product ${cod} because next line contains stop text`);
+                    break;
+                }
+                
+                quantityUpdates.push({
+                    cod: cod.replace("-", "").trim(),
+                    bucati: bucati,
+                    nume: nume.trim()
+                });
+                console.log(`Found quantity update: ${cod} - ${bucati} units`);
+            } else {
+                // If line doesn't match product pattern, we might be done
+                break;
+            }
+            
+            i++;
+        }
+        
+        return quantityUpdates;
+    },
+    
+    // Helper function to process quantity updates and return messages
+    processQuantityUpdates: function(quantityUpdates, products) {
+        const updateMessages = [];
+        
+        quantityUpdates.forEach(update => {
+            // Look for existing product with this code
+            const existingProduct = products.find(p => p.nume.startsWith(update.cod + ' '));
+            
+            if (existingProduct) {
+                // Add the quantity to existing product
+                const oldQuantity = parseInt(existingProduct.bucati) || 0;
+                const newQuantity = parseInt(update.bucati) || 0;
+                const finalQuantity = oldQuantity + newQuantity;
+                existingProduct.bucati = finalQuantity.toString();
+                
+                // Recalculate total price if unit price exists
+                if (existingProduct.pretUnitar && existingProduct.pretUnitar !== '') {
+                    const unitPrice = parseFloat(existingProduct.pretUnitar) || 0;
+                    existingProduct.pretTotal = (finalQuantity * unitPrice).toFixed(2);
+                }
+                
+                console.log(`Added quantity for ${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati}`);
+                updateMessages.push(`${update.cod}: ${oldQuantity} + ${newQuantity} = ${existingProduct.bucati} bucăți`);
+            } else {
+                // Add as new product without price
+                products.push({
+                    nume: update.cod + " " + update.nume,
+                    bucati: update.bucati,
+                    pretUnitar: '',
+                    pretTotal: ''
+                });
+                console.log(`Added new product without price: ${update.cod} ${update.nume}`);
+                updateMessages.push(`${update.cod}: Produs nou adăugat cu ${update.bucati} bucăți (fără preț)`);
+            }
+        });
+        
+        return updateMessages;
+    },
+    
+    // Helper function to display update messages
+    displayUpdateMessages: function(allUpdateMessages) {
+        if (allUpdateMessages.length > 0) {
+            const messageDiv = document.getElementById('quantityUpdatesMessage');
+            const contentDiv = document.getElementById('quantityUpdatesContent');
+            
+            let htmlContent = '';
+            allUpdateMessages.forEach((section, index) => {
+                if (index > 0) {
+                    htmlContent += '<hr style="margin: 10px 0;">';
+                }
+                htmlContent += `<strong>${section.section}:</strong><br>`;
+                htmlContent += section.messages.map(msg => `<div style="margin: 5px 0;">${msg}</div>`).join('');
+            });
+            
+            contentDiv.innerHTML = htmlContent;
+            messageDiv.style.display = 'block';
+        } else {
+            // Hide the message div if no updates
+            document.getElementById('quantityUpdatesMessage').style.display = 'none';
+        }
     },
     
     parseOutletInvoice: function(lines) {

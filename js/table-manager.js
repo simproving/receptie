@@ -289,7 +289,7 @@ const TableManager = {
             newRow.querySelector('td:nth-child(11) input').value = pretTotal;
         } else if (isOutlet) {
             // Calculate prices for Outlet
-            pretUnitar = parseInt(pretUnitar) * 1.19 * 2;
+            pretUnitar = parseInt(pretUnitar) * 1.21 * 2;
             pretUnitar = pretUnitar.toFixed(2);
 
             //round pretUnitar to the nearest number divisible by 5
@@ -304,7 +304,7 @@ const TableManager = {
             newRow.querySelector('td:nth-child(10) input').value = pretUnitar;
             newRow.querySelector('td:nth-child(11) input').value = pretTotal;
         } else if (isArgint) {
-            pretUnitar = parseFloat(pretUnitar) * 1.19 * 2;
+            pretUnitar = parseFloat(pretUnitar) * 1.21 * 2;
             pretUnitar = Math.ceil(pretUnitar / 5) * 5; // Round up to nearest 5
             pretUnitar = pretUnitar.toFixed(2);
 
